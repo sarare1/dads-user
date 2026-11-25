@@ -75,20 +75,42 @@ _UNSAFE_TEXT = re.compile(r"[<>&\"'`]")
 _UNSAFE_NAME = re.compile(r"[^\w.\- ()%/+µΔ]", re.UNICODE)
 
 
+_CLEAN_MARK = "dads_sanitized"  # df.attrs key: the column names a frame was last checked with
+
+
+def _unsafe_text_column(s: pd.Series) -> Optional[dict]:
+    """{dirty value: cleaned value} of a text column, or None when it holds no markup characters.
+    Only the distinct values are checked: a label column of a million rows has a few dozen of them."""
+    dirty = {}
+    for v in pd.unique(s.dropna()):
+        text = str(v)
+        if _UNSAFE_TEXT.search(text):
+            dirty[v] = _UNSAFE_TEXT.sub("", text)
+    return dirty or None
+
+
 def sanitize_frame(df: pd.DataFrame) -> pd.DataFrame:
     """Uploaded files are untrusted: column names and class/text labels end up in the web pages, so
-    markup characters are removed from them. Numeric data is untouched; clean frames pass through as is."""
-    names = [_UNSAFE_NAME.sub("_", str(c)) for c in df.columns]
-    if names != [str(c) for c in df.columns]:
+    markup characters are removed from them. Numeric data is untouched; clean frames pass through as is.
+
+    A checked frame is marked (df.attrs, carried along by copies and slices), so the cached datasets and
+    the per-track calls of the inference path are not scanned again. The mark holds the column names:
+    a frame that gained or renamed columns since is checked again."""
+    cols = tuple(str(c) for c in df.columns)
+    if df.attrs.get(_CLEAN_MARK) == cols:
+        return df
+    names = [_UNSAFE_NAME.sub("_", c) for c in cols]
+    if names != list(cols):
         df = df.copy()
         df.columns = names
     for col in df.columns:
         s = df[col]
         if pd.api.types.is_string_dtype(s) or pd.api.types.is_object_dtype(s):
-            texts = s.dropna().astype(str)
-            if texts.str.contains(_UNSAFE_TEXT).any():
+            dirty = _unsafe_text_column(s)
+            if dirty:
                 df = df.copy()
-                df[col] = s.where(s.isna(), s.astype(str).str.replace(_UNSAFE_TEXT, "", regex=True))
+                df[col] = s.map(lambda v: dirty.get(v, v))
+    df.attrs[_CLEAN_MARK] = tuple(str(c) for c in df.columns)
     return df
 
 

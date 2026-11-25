@@ -54,48 +54,108 @@ _TEST_COLUMNS = [
 ]
 
 
+# Storage type of each column (anything not listed is TEXT). Booleans are stored as INTEGER 0/1.
+_REAL = {"closed_set_accuracy", "open_set_auroc", "open_set_auroc_rpl", "final_loss", "learning_rate",
+         "triplet_margin", "classifier_confidence_threshold", "ood_distance_threshold",
+         "training_duration_seconds", "noise_pct", "rpl_loss_weight",
+         "freq_min_mhz", "freq_max_mhz", "pw_min_us", "pw_max_us", "pri_min_us", "pri_max_us",
+         "rise_min_ns", "rise_max_ns", "bw_min_mhz", "bw_max_mhz", "fall_min_ns", "fall_max_ns",
+         "missed_pct", "spurious_pct", "duty_min_pct", "duty_max_pct", "test_pct",
+         "cv_accuracy_mean", "cv_accuracy_std", "track_accuracy"}
+_INTEGER = {"num_classes", "num_holdout_classes", "samples_per_class", "epochs", "dataset_seed", "train_seed",
+            "window_k", "pulses_per_track", "embedding_dim", "parent_run_id", "cv_folds",
+            "num_known_classes", "num_known_pulses", "num_openset_pulses", "total_pulses", "run_id"}
+_BOOLEAN = {"rpl_adversarial", "include_pgri", "include_test", "balanced_patterns"}
+_TABLES = {"training_runs": _COLUMNS, "test_runs": _TEST_COLUMNS}
+TYPED_BACKUP = "training_history.pre-typed.db"  # copy of the history kept by the one-time type migration
+
+
+def _sql_type(col: str) -> str:
+    return "REAL" if col in _REAL else "INTEGER" if col in _INTEGER | _BOOLEAN else "TEXT"
+
+
+def _create_sql(table: str, name: Optional[str] = None) -> str:
+    cols = ", ".join(f"{c} {_sql_type(c)}" for c in _TABLES[table])
+    return (f"CREATE TABLE IF NOT EXISTS {name or table} "
+            f"(id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp_utc TEXT NOT NULL, {cols})")
+
+
+def _convert_expr(col: str) -> str:
+    """SQL turning a value stored as text by DADS <= 1.2 ("0.93", "7.0", "1", "True") into its typed form."""
+    blank_is_null = f"NULLIF(trim({col}), '')"
+    if col in _REAL:
+        return f"CAST({blank_is_null} AS REAL)"
+    if col in _INTEGER:
+        return f"CAST(CAST({blank_is_null} AS REAL) AS INTEGER)"
+    if col in _BOOLEAN:
+        return (f"CASE WHEN {blank_is_null} IS NULL THEN NULL "
+                f"WHEN lower(trim({col})) IN ('1', '1.0', 'true', 'yes') THEN 1 ELSE 0 END")
+    return col
+
+
+def _needs_typing(conn: sqlite3.Connection, table: str) -> bool:
+    declared = {row[1]: (row[2] or "").upper() for row in conn.execute(f"PRAGMA table_info({table})")}
+    return any(declared.get(c) != _sql_type(c) for c in _TABLES[table] if c in declared)
+
+
+def _migrate_to_typed(conn: sqlite3.Connection) -> None:
+    """Up to DADS 1.2 every column was TEXT, so numbers came back as strings and sorted/compared as text.
+    Rebuilds the tables with REAL/INTEGER columns and converts the stored values, once, in one transaction.
+    Row ids are kept and the id counter is never lowered, so a deleted run's id is never handed out again
+    (model files and test details are named by id). The old file is copied to TYPED_BACKUP first."""
+    tables = [t for t in _TABLES if _needs_typing(conn, t)]
+    if not tables:
+        return
+    backup = os.path.join(os.path.dirname(DB_PATH), TYPED_BACKUP)
+    if not os.path.exists(backup):
+        dst = sqlite3.connect(backup)
+        try:
+            conn.backup(dst)
+        finally:
+            dst.close()
+    conn.isolation_level = None
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        for table in tables:
+            # Table and column names come from the fixed lists above, never from input.
+            seq = conn.execute("SELECT seq FROM sqlite_sequence WHERE name = ?", (table,)).fetchone()
+            cols = _TABLES[table]
+            conn.execute(f"DROP TABLE IF EXISTS {table}_typed")
+            conn.execute(_create_sql(table, f"{table}_typed"))
+            conn.execute(f"INSERT INTO {table}_typed (id, timestamp_utc, {', '.join(cols)}) "  # nosec B608
+                         f"SELECT id, timestamp_utc, {', '.join(_convert_expr(c) for c in cols)} FROM {table}")
+            conn.execute(f"DROP TABLE {table}")
+            conn.execute(f"ALTER TABLE {table}_typed RENAME TO {table}")
+            if seq is not None:
+                conn.execute("UPDATE sqlite_sequence SET seq = max(seq, ?) WHERE name = ?", (seq[0], table))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.isolation_level = ""
+
+
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     try:
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS training_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp_utc TEXT NOT NULL,
-                {", ".join(f"{c} TEXT" for c in _COLUMNS)}
-            )
-        """)
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS test_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp_utc TEXT NOT NULL,
-                {", ".join(f"{c} TEXT" for c in _TEST_COLUMNS)}
-            )
-        """)
+        for table in _TABLES:
+            conn.execute(_create_sql(table))
         conn.commit()
 
-        # Safe migration for DB files created before these columns existed — a no-op on a
-        # freshly created table (CREATE TABLE above already included them), harmless if run
-        # more than once (duplicate-column errors are swallowed).
-        for col in _COLUMNS:
-            try:
-                conn.execute(f"ALTER TABLE training_runs ADD COLUMN {col} TEXT")
-                conn.commit()
-            except sqlite3.OperationalError:
-                pass
-        for col in _TEST_COLUMNS:
-            try:
-                conn.execute(f"ALTER TABLE test_runs ADD COLUMN {col} TEXT")
-                conn.commit()
-            except sqlite3.OperationalError:
-                pass
-
-        # Drop columns of settings that no longer exist.
-        for table in ("training_runs", "test_runs"):
+        # DB files created before a column existed get it (a no-op on a freshly created table).
+        for table, cols in _TABLES.items():
             existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            for col in cols:
+                if col not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {_sql_type(col)}")
+            # Drop columns of settings that no longer exist.
             for col in _DROPPED_COLUMNS & existing:
                 conn.execute(f"ALTER TABLE {table} DROP COLUMN {col}")
-                conn.commit()
+            conn.commit()
+
+        _migrate_to_typed(conn)
     finally:
         conn.close()
 
@@ -106,8 +166,8 @@ def _to_ist_string(timestamp_utc: str) -> str:
 
 
 def insert_run(record: Dict[str, Any]) -> int:
-    """Inserts one completed training run. `record` must contain every key in _COLUMNS;
-    numeric/list values are stored as-is (sqlite3 coerces), loss_curve is JSON-encoded."""
+    """Inserts one completed training run. `record` must contain every key in _COLUMNS; values are stored
+    in the column's type (REAL / INTEGER, booleans as 0/1), loss_curve is JSON-encoded."""
     conn = sqlite3.connect(DB_PATH)
     try:
         row = dict(record)
@@ -127,33 +187,29 @@ def insert_run(record: Dict[str, Any]) -> int:
         conn.close()
 
 
+def _typed(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Python types for a row. Columns are typed since DADS 1.3; the conversion still accepts the text
+    values of an older file in case its migration was skipped."""
+    for key, value in d.items():
+        if key in _BOOLEAN:
+            d[key] = None if value is None else str(value).strip().lower() in ("1", "1.0", "true", "yes")
+        elif value is None:
+            continue
+        elif key in _REAL or key in _INTEGER:
+            if isinstance(value, str) and not value.strip():
+                d[key] = None
+            else:
+                d[key] = float(value) if key in _REAL else int(float(value))
+    return d
+
+
 def _row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
-    d = dict(row)
+    d = _typed(dict(row))
     d["timestamp_ist"] = _to_ist_string(d["timestamp_utc"])
     d["saved_at_ist"] = _to_ist_string(d["saved_at_utc"]) if d.get("saved_at_utc") else None
     d["loss_curve"] = json.loads(d.pop("loss_curve_json") or "[]")
-    for key in ("closed_set_accuracy", "open_set_auroc", "open_set_auroc_rpl", "final_loss", "learning_rate",
-                "triplet_margin", "classifier_confidence_threshold", "ood_distance_threshold",
-                "training_duration_seconds", "noise_pct", "rpl_loss_weight",
-                "freq_min_mhz", "freq_max_mhz", "pw_min_us", "pw_max_us",
-                "pri_min_us", "pri_max_us",
-                "rise_min_ns", "rise_max_ns", "bw_min_mhz", "bw_max_mhz", "fall_min_ns", "fall_max_ns",
-                "missed_pct", "spurious_pct", "duty_min_pct", "duty_max_pct", "test_pct", "cv_accuracy_mean", "cv_accuracy_std"):
-        if d.get(key) is not None:
-            d[key] = float(d[key])
-    for key in ("num_classes", "num_holdout_classes",
-                "samples_per_class", "epochs", "dataset_seed", "train_seed", "window_k", "pulses_per_track", "embedding_dim",
-                "parent_run_id", "cv_folds"):
-        if d.get(key) is not None:
-            d[key] = int(float(d[key]))
-    d["include_pgri"] = str(d.get("include_pgri")).strip().lower() in ("1", "true", "yes")
-    d["include_test"] = str(d.get("include_test")).strip().lower() in ("1", "true", "yes")
-    d["balanced_patterns"] = str(d.get("balanced_patterns")).strip().lower() in ("1", "true", "yes")
-    if d.get("rpl_adversarial") is not None:
-        # sqlite3 stores a Python bool as integer 1/0 (bool is an int subclass), and the TEXT
-        # column affinity here can coerce that to the string "1"/"0" on read — so both integer
-        # and string truthy forms need handling, not just a literal "true"/"false" string.
-        d["rpl_adversarial"] = str(d["rpl_adversarial"]).strip().lower() in ("1", "true", "yes")
+    for key in ("include_pgri", "include_test", "balanced_patterns"):  # NULL = before the option existed = off
+        d[key] = bool(d.get(key))
     return d
 
 
@@ -191,8 +247,7 @@ def delete_run(run_id: int) -> int:
     conn = sqlite3.connect(DB_PATH)
     try:
         conn.execute("DELETE FROM training_runs WHERE id = ?", (run_id,))
-        # run_id is a TEXT column; compare numerically so "7" and "7.0" both match.
-        tests = conn.execute("DELETE FROM test_runs WHERE run_id IS NOT NULL AND CAST(run_id AS INTEGER) = ?", (run_id,))
+        tests = conn.execute("DELETE FROM test_runs WHERE run_id = ?", (run_id,))
         conn.commit()
         return tests.rowcount
     finally:
@@ -243,15 +298,8 @@ def get_all_runs(limit: int = 50) -> List[Dict[str, Any]]:
 
 
 def _test_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
-    d = dict(row)
+    d = _typed(dict(row))
     d["timestamp_ist"] = _to_ist_string(d["timestamp_utc"])
-    for key in ("closed_set_accuracy", "open_set_auroc", "track_accuracy"):
-        if d.get(key) is not None:
-            d[key] = float(d[key])
-    for key in ("num_known_classes", "num_holdout_classes",
-                "num_known_pulses", "num_openset_pulses", "total_pulses", "dataset_seed", "run_id"):
-        if d.get(key) is not None:
-            d[key] = int(float(d[key]))
     return d
 
 

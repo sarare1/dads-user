@@ -17,10 +17,11 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 from src.api import server
+from src.api import common, core
 from src.data.sequence_generator import build_sequence_dataset_rows
 from src.storage.dataset_store import DatasetStore
 
-assert os.path.abspath(server.DATA_DIR) == os.path.abspath(os.environ["DADS_DATA_DIR"]), "tests must not touch data/"
+assert os.path.abspath(core.DATA_DIR) == os.path.abspath(os.environ["DADS_DATA_DIR"]), "tests must not touch data/"
 
 
 def _client() -> TestClient:
@@ -35,6 +36,13 @@ def _csv_bytes(seed: int = 5) -> bytes:
     return pd.DataFrame(rows).to_csv(index=False).encode()
 
 
+
+def _all_routes(routes):
+    """Every route, also those of the included route modules (FastAPI keeps them in their own router)."""
+    for r in routes:
+        inner = getattr(r, "original_router", None)
+        yield from (_all_routes(inner.routes) if inner is not None else [r])
+
 def test_heavy_endpoints_do_not_run_on_the_event_loop():
     # A plain `def` endpoint runs in FastAPI's worker threads; `async def` runs on the shared event loop,
     # where one slow CSV parse or model load would stall every user and WebSocket.
@@ -44,7 +52,7 @@ def test_heavy_endpoints_do_not_run_on_the_event_loop():
         "download_model", "generate_sequence_dataset", "expand_sequence_dataset", "test_sequence_model", "sequence_infer",
         "sequence_example_track", "generate_new_family_dataset", "activate_sequence_model", "sequence_models",
     }
-    endpoints = {getattr(r, "endpoint", None).__name__: r.endpoint for r in server.app.routes if getattr(r, "endpoint", None)}
+    endpoints = {r.endpoint.__name__: r.endpoint for r in _all_routes(server.app.routes) if getattr(r, "endpoint", None)}
     missing = must_be_threaded - endpoints.keys()
     assert not missing, missing
     on_loop = sorted(n for n in must_be_threaded if asyncio.iscoroutinefunction(endpoints[n]))
@@ -88,13 +96,13 @@ def test_api_upload_records_hash_and_detects_a_changed_dataset():
         assert r.status_code == 200, r.text
         name = r.json()["name"]
         listed = {d["name"]: d for d in c.get("/api/datasets").json()["datasets"]}
-        assert listed[name]["sha256"] == server.datasets.content_hash(name)
-        assert server.datasets.meta(name)["original_sha256"] == hashlib.sha256(data).hexdigest()
+        assert listed[name]["sha256"] == core.datasets.content_hash(name)
+        assert core.datasets.meta(name)["original_sha256"] == hashlib.sha256(data).hexdigest()
 
         run = {"id": 1, "dataset_name": name, "dataset_sha256": listed[name]["sha256"]}
-        server._check_run_dataset(run)  # unchanged: fine
+        common._check_run_dataset(run)  # unchanged: fine
         try:
-            server._check_run_dataset(dict(run, dataset_sha256="0" * 64))
+            common._check_run_dataset(dict(run, dataset_sha256="0" * 64))
             raise AssertionError("a changed dataset was accepted as the run's training data")
         except ValueError:
             pass

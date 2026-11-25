@@ -52,7 +52,7 @@ def _api(method: str, path: str, body=None):
                                  headers={"Authorization": f"Bearer {_token()}", "Accept": "application/vnd.github+json",
                                           "User-Agent": "dads-publish"})
     try:
-        with urllib.request.urlopen(req) as r:  # nosec B310 - fixed https URL
+        with urllib.request.urlopen(req) as r:  # nosec B310
             return r.status, json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read() or b"{}")
@@ -101,7 +101,8 @@ def main() -> int:
                 shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
         tar = subprocess.run(["git", "archive", "--format=tar", a.ref], cwd=ROOT, capture_output=True, check=True).stdout
         with tarfile.open(fileobj=io.BytesIO(tar)) as t:  # our own git archive, not outside input
-            t.extractall(work)  # nosec B202
+            kw = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
+            t.extractall(work, **kw)  # nosec B202
         for name in EXCLUDE:
             p = os.path.join(work, name)
             if os.path.exists(p):

@@ -334,7 +334,11 @@ The Help page documents the whole pipeline end to end, with the formula and rati
 
 ```
 src/
-  api/server.py            FastAPI app — all routes, config state, sequence training / testing / inference
+  api/
+    server.py               FastAPI app: sign-in gate, security headers, mounts the route modules
+    core.py                 Shared state: data paths, stores, configuration, job status, error helpers
+    common.py               Helpers used by several route modules (dataset lookup, run lineage, model cache)
+    routers/                Endpoints: pages, runs, datasets, analytics, training, inference, incremental
   data/
     generator.py            Emitter-family archetypes (frequency, duty-cycle-based PW, PRI pattern, …)
     operating_modes.py       Shared search/acquisition/track/illumination mode logic
@@ -369,11 +373,8 @@ data/                       All generated/persisted artifacts (see §9)
 - No TensorRT / GPU support in the running app by design — CPU-only PyTorch (the downloadable package can use
   ONNX Runtime GPU / TensorRT).
 - **Engineering debt, known and kept for now:**
-  - `src/api/server.py` holds routes, job control and analytics in one large file.
-  - The history database stores numbers as text.
-  - The Content-Security-Policy allows inline scripts.
-
-  Changing any of these touches most of the code (and every tester patch), so each will be its own release.
+  - The Content-Security-Policy allows inline scripts. Changing it touches every page, so it will be its own
+    release.
 
 ---
 

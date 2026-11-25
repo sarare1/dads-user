@@ -32,7 +32,7 @@ flowchart TB
         Login["Login page"]
     end
 
-    subgraph API["FastAPI backend (src/api/server.py)"]
+    subgraph API["FastAPI backend (src/api/: server.py + routers/)"]
         Auth["Auth gate middleware\n(hashed accounts, server-side sessions, audit log)"]
         REST["REST endpoints\n/api/sequence/*, /api/train*, /api/runs*, /api/config, /api/analytics"]
         WS["WebSocket\n/ws/sequence_live"]
@@ -95,7 +95,11 @@ DADS/
 ├── .github/                      # CI (tests, bandit, pip-audit), tag-triggered releases, Dependabot
 ├── tests/                        # pytest suite; every run uses its own DADS_DATA_DIR, never data/
 ├── src/
-│   ├── api/server.py              # FastAPI app: routes, auth, config state, training jobs, sequence endpoints
+│   ├── api/
+│   │   ├── server.py              # FastAPI app: auth gate middleware, security headers, error handler, mounts routers
+│   │   ├── core.py                # shared state: paths, auth/dataset/model stores, config, job status, error helpers
+│   │   ├── common.py              # helpers used by several routers (dataset lookup, run lineage, model cache)
+│   │   └── routers/               # pages, runs, datasets, analytics, training, inference, incremental
 │   ├── data/
 │   │   ├── generator.py           # emitter-family archetypes (build_emitter_library), noise PW/PRI, frequency_to_band
 │   │   ├── operating_modes.py     # search/track/illuminate mode definitions + transitions
@@ -459,7 +463,7 @@ Training form agrees with what is persisted, rather than silently falling back t
 
 ## 11. Authentication
 
-Code: `src/storage/auth_store.py`, wired in `src/api/server.py`; accounts are managed with `scripts/manage_users.py`.
+Code: `src/storage/auth_store.py`, wired in `src/api/core.py` and the gate in `src/api/server.py`; accounts are managed with `scripts/manage_users.py`.
 
 - **Accounts**: `data/auth.db` (SQLite), passwords as salted PBKDF2-SHA256 (600 000 iterations). No credential
   is in the source. On first start with no accounts, `admin` is created from `DADS_ADMIN_PASSWORD`, or with a

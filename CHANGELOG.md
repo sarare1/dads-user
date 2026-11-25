@@ -5,6 +5,25 @@ Versions: [Semantic Versioning](https://semver.org/) (see `docs/RELEASING.md`).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-25
+
+**Upgrade:** nothing to do. On the first start, the history database (`data/training_history.db`) is
+converted once; a copy of the old file is kept as `data/training_history.pre-typed.db`.
+
+### Changed
+- **`src/api/server.py` is split into modules.** `server.py` keeps the app, the sign-in gate and the error
+  handler. Shared state is in `core.py`, shared helpers in `common.py`, and the endpoints in seven route
+  modules in `src/api/routers/`. Every endpoint, URL and response is unchanged, and the start command is still
+  `uvicorn src.api.server:app`.
+- **The history database stores numbers as numbers.** Scores, settings and counts are REAL or INTEGER
+  columns, and switches are 0/1, instead of text. Older files are converted automatically. Run ids are kept,
+  and a deleted run's id is never reused.
+
+### Performance
+- **Faster upload check.** The markup check on text columns looks at each distinct value once and marks
+  frames it has already checked. The first load of a 2-million-row dataset takes 0.28 s instead of 1.1 s.
+  The per-track calls in inference and the live feed no longer scan anything again.
+
 ## [1.2.0] - 2026-11-25
 
 **Upgrade:** a new dependency (`cryptography`). On the server, migrate once with

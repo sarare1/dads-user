@@ -17,6 +17,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api import server
+from src.api import core
+from src.api.routers import pages
 from src.models import package_signing as ps
 from src.models.deploy import sequence_inference
 from src.models.registry import ModelRegistry
@@ -96,10 +98,10 @@ def test_standalone_inference_refuses_a_changed_package(tmp_path):
 
 
 def test_error_text_hides_paths_and_internal_errors():
-    msg = server._public_error(ValueError(r"cannot open C:\Users\someone\DADS\data\x.csv or /root/dads/data/y.pt"))
+    msg = core._public_error(ValueError(r"cannot open C:\Users\someone\DADS\data\x.csv or /root/dads/data/y.pt"))
     assert "someone" not in msg and "/root" not in msg and "x.csv" in msg and "y.pt" in msg
-    assert server._public_error(ValueError("ratio 3/4")) == "ratio 3/4"
-    out = server._explain_error(RuntimeError("secret /root/dads internals"))
+    assert core._public_error(ValueError("ratio 3/4")) == "ratio 3/4"
+    out = core._explain_error(RuntimeError("secret /root/dads internals"))
     assert "secret" not in out and "reference" in out
 
 
@@ -117,7 +119,7 @@ def test_package_key_endpoint_needs_login():
 
 
 def test_dot_metric_is_retired_but_old_runs_load():
-    assert "dot" not in server.DISTANCE_METRICS
+    assert "dot" not in pages.DISTANCE_METRICS
     import torch
     a, b = torch.nn.functional.normalize(torch.randn(3, 4), dim=1), torch.nn.functional.normalize(torch.randn(3, 4), dim=1)
     assert torch.allclose(build_distance_fn("dot")(a, b), build_distance_fn("cosine")(a, b))
