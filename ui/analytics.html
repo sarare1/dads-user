@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DADS - PhD Research Project — Analytics</title>
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/escape.js"></script>
+    <link rel="stylesheet" href="/static/shared.css">
+    <script src="/static/feature_labels.js"></script>
+    <style>
+        .plot-btn {
+            display: block; width: 100%; text-align: left; background: #1f2937; color: var(--text-main);
+            font-weight: normal; font-size: 8.8pt; padding: 7px 10px; margin-top: 4px; border-radius: 4px;
+            border: 1px solid transparent; cursor: pointer;
+        }
+        .plot-btn:hover { background: #263244; }
+        .plot-btn.active { background: #0c3550; border-color: var(--accent-blue); color: var(--accent-blue); font-weight: bold; }
+        .plot-group-label {
+            font-size: 8pt; color: #6b7280; text-transform: uppercase; font-weight: bold;
+            margin-top: 16px; margin-bottom: 4px; letter-spacing: 0.5px;
+        }
+        #plot-area { min-height: 480px; }
+        .plot-canvas-wrap { height: 460px; }
+        .scatter-controls { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
+        .scatter-controls > div { flex: 1; min-width: 150px; }
+        .scatter-controls button { margin-top: 4px; }
+        .empty-state { color: #6b7280; font-size: 9.5pt; padding: 40px 0; text-align: center; }
+        .band-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 8.5pt; margin-bottom: 8px; color: #9ca3af; }
+        .band-legend span { display: inline-flex; align-items: center; gap: 4px; }
+        .band-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+        .rate-cell { text-align: center !important; font-weight: bold; color: #111; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>DADS - PhD Research Project</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-tag">ANALYTICS</span>
+            <a href="#" onclick="logout(); return false;" class="status-tag" style="background:#374151; color:#e5e7eb; cursor:pointer; text-decoration:none;">Logout</a>
+        </div>
+    </header>
+    <nav class="top-nav">
+        <a href="/">Training</a>
+        <a href="/validation">Testing</a>
+        <a href="/inference">Inference</a>
+        <a href="/dataset">Dataset</a>
+        <a href="/analytics" class="active">Analytics</a>
+        <a href="/live">Live Simulation</a>
+        <a href="/help">Help</a>
+    </nav>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="card-title">Dataset Source</div>
+            <label>Source</label>
+            <select id="source-select">
+                <option value="dataset|">Loading datasets…</option>
+            </select>
+            <div id="source-info" class="hint"></div>
+            <button onclick="loadDataset()">Load Dataset</button>
+            <div id="load-status" class="hint"></div>
+
+            <div id="plot-buttons"></div>
+        </div>
+
+        <div class="page-content">
+            <div id="analytics-summary" class="status-line" style="margin-bottom: 12px;">No dataset loaded yet — pick a source and click Load Dataset.</div>
+            <div class="card" id="plot-area">
+                <div class="empty-state">Select a plot from the left once a dataset is loaded.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        let analyticsData = null;
+        let currentChart = null;
+        let activeView = null;
+
+        const PALETTE = ["#00d2ff", "#f59e0b", "#10b981", "#ef4444", "#7c3aed", "#ec4899", "#84cc16", "#38bdf8", "#fb923c", "#a78bfa"];
+        const GROUP_COLORS = { known: "#10b981", holdout: "#f59e0b", noise: "#ef4444" };
+        const GROUP_NAMES = { known: "Known classes", holdout: "Held-out (unknown) classes", noise: "Unstructured noise" };
+        const BAND_COLORS = { "L-BAND": "#a78bfa", "S-BAND": "#38bdf8", "C-BAND": "#10b981", "X-BAND": "#f59e0b", "KU-BAND": "#ef4444", "K-BAND": "#ec4899", "KA-BAND": "#84cc16" };
+
+        let sourceList = [];
+        async function loadSources() {
+            // Every stored dataset (generated, uploaded for training or for testing) and the dataset behind each kept model.
+            const select = document.getElementById('source-select');
+            const previous = select.value;
+            try {
+                sourceList = (await (await fetch('/api/analytics/sources')).json()).sources || [];
+            } catch (e) { sourceList = []; }
+            if (!sourceList.length) {
+                select.innerHTML = '<option value="dataset|">No dataset yet — generate or upload one on the Dataset page</option>';
+                return;
+            }
+            const groups = [...new Set(sourceList.map(s => s.group))];
+            select.innerHTML = groups.map(g => `<optgroup label="${escapeHtml(g)}">${sourceList.filter(s => s.group === g)
+                .map(s => `<option value="${escapeHtml(s.source + '|' + s.filename)}">${escapeHtml(s.label)}</option>`).join('')}</optgroup>`).join('');
+            const active = (await (await fetch('/api/datasets')).json()).active;
+            if ([...select.options].some(o => o.value === previous)) select.value = previous;
+            else if (active && [...select.options].some(o => o.value === 'dataset|' + active)) select.value = 'dataset|' + active;
+            showSourceInfo();
+        }
+        function showSourceInfo() {
+            const s = sourceList.find(x => x.source + '|' + x.filename === document.getElementById('source-select').value);
+            document.getElementById('source-info').innerText = s ? `${s.group} · ${s.modified}` : '';
+        }
+        document.getElementById('source-select').onchange = showSourceInfo;
+
+        async function loadDataset() {
+            const value = document.getElementById('source-select').value;
+            const cut = value.indexOf('|');
+            const source = value.slice(0, cut), filename = value.slice(cut + 1);
+            const statusEl = document.getElementById('load-status');
+            statusEl.innerText = 'Loading...';
+            try {
+                const resp = await fetch(`/api/analytics?source=${encodeURIComponent(source)}` + (filename ? `&filename=${encodeURIComponent(filename)}` : ''));
+                const data = await resp.json();
+                if (data.status !== 'success') {
+                    statusEl.innerText = data.message || 'Failed to load dataset.';
+                    document.getElementById('analytics-summary').innerText = data.message || 'No dataset found for this source.';
+                    document.getElementById('plot-buttons').innerHTML = '';
+                    return;
+                }
+                analyticsData = data;
+                statusEl.innerText = `Loaded dataset “${data.filename}”`;
+                document.getElementById('analytics-summary').innerHTML = '<b>Dataset: ' + escapeHtml(data.filename) + '</b> — ' + escapeHtml(
+                    `${data.total_rows} rows, ${data.features.length} features (measured + derived)` +
+                    (data.label_column ? `, grouped by ${data.label_column} (${Object.keys(data.class_counts).length} labels)` : ''));
+                buildPlotButtons();
+                showSummary();
+            } catch (e) {
+                statusEl.innerText = 'Load failed — is the server running?';
+            }
+        }
+
+        const has = (f) => analyticsData.features.includes(f);
+
+        function buildPlotButtons() {
+            const container = document.getElementById('plot-buttons');
+            container.innerHTML = '';
+            const addGroup = (label) => {
+                const div = document.createElement('div');
+                div.className = 'plot-group-label';
+                div.innerText = label;
+                container.appendChild(div);
+            };
+            const addButton = (id, label, onClick) => {
+                const btn = document.createElement('button');
+                btn.className = 'plot-btn';
+                btn.dataset.viewId = id;
+                btn.innerText = label;
+                btn.onclick = () => { setActiveButton(id); onClick(); };
+                container.appendChild(btn);
+            };
+            const d = analyticsData;
+
+            addGroup('Overview');
+            addButton('summary', 'Summary Statistics', showSummary);
+            addButton('quality', 'Data Quality', showDataQuality);
+            addButton('correlation', 'Correlation Heatmap', showCorrelation);
+            if (d.label_column) addButton('classbalance', 'Class Balance', showClassBalance);
+
+            if (d.label_column && d.feature_ranking.length) {
+                addGroup('Feature Usefulness');
+                addButton('ranking', 'Feature Ranking', showFeatureRanking);
+                addButton('perclass', 'Per-Class Distributions', () => showHistogramViewer({ group: 'class' }));
+                if ((d.distributions.group_totals.holdout || 0) + (d.distributions.group_totals.noise || 0) > 0) {
+                    addButton('knownunknown', 'Known vs Unknown', () => showHistogramViewer({ group: 'known' }));
+                }
+            }
+
+            addGroup('Radar / ESM Analysis');
+            if (d.rf_spectrum) addButton('spectrum', 'RF Spectrum Occupancy', showSpectrum);
+            if (d.band_distribution) addButton('bands', 'Frequency Band Breakdown', showBandDistribution);
+            if (has('pri_us')) addButton('prilog', 'PRI Histogram (log)', () => showHistogramViewer({ feature: 'pri_us', log: true }));
+            if (has('prf_hz')) addButton('prflog', 'PRF Histogram (log)', () => showHistogramViewer({ feature: 'prf_hz', log: true }));
+            if (has('pri_us') && has('pulse_width')) addButton('pwpri', 'PW vs PRI (Duty Cycle)', showPwVsPri);
+            if (has('frequency_mhz') && has('pulse_width')) addButton('freqpw', 'Frequency vs PW Map', () => showPresetScatter('frequency_mhz', 'pulse_width', false, true, 'Frequency vs Pulse Width — Emitter Map', 'The classic ESM "fingerprint" map: each radar family forms its own cluster, spread along PW by its operating modes. Overlapping clusters are the hard cases for the classifier.'));
+            if (has('rise_time_ns') && has('fall_time_ns')) addButton('risefall', 'Rise vs Fall Time', showRiseFall);
+            if (has('tb_product')) addButton('tb', 'Time-Bandwidth Product', () => showHistogramViewer({ feature: 'tb_product', log: true }));
+            if (d.pri_pattern_distribution) addButton('pripattern', 'PRI Pattern Distribution', showPriPatternDistribution);
+            if (d.pri_traces) addButton('pritraces', 'PRI Patterns Over Time', showPriTraces);
+            if (d.pri_pattern_check) addButton('pricheck', 'PRI Pattern Check', showPriPatternCheck);
+            if (d.mode_by_class) addButton('modes', 'Operating Mode by Class', showModeByClass);
+
+            if (d.pca_raw) {
+                addGroup('Class Separability');
+                addButton('pca-raw', 'PCA — Raw Features', () => showPCA());
+            }
+
+            addGroup('Distributions');
+            addButton('histogram', 'Histogram Viewer', () => showHistogramViewer({}));
+            if (d.label_column && Object.keys(d.boxplot).length) addButton('boxplot', 'Box Plot by Class', () => showBoxplotViewer());
+
+            addGroup('Relationships');
+            addButton('scatter', 'Scatter Explorer', showScatterExplorer);
+
+            setActiveButton('summary');
+        }
+
+        function setActiveButton(id) {
+            activeView = id;
+            document.querySelectorAll('.plot-btn').forEach(b => b.classList.toggle('active', b.dataset.viewId === id));
+        }
+
+        function destroyChart() {
+            if (currentChart) { currentChart.destroy(); currentChart = null; }
+        }
+
+        function freshCanvas() {
+            const area = document.getElementById('plot-area');
+            area.innerHTML = '<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>';
+            return document.getElementById('plot-canvas').getContext('2d');
+        }
+
+        function header(title, hint) {
+            return `<div class="card-title">${title}</div><div class="hint" style="margin-bottom:10px;">${hint}</div>`;
+        }
+
+        // ---------------- Overview ----------------
+
+        function showSummary() {
+            if (!analyticsData) return;
+            destroyChart();
+            const d = analyticsData.describe;
+            const cols = ["count", "mean", "std", "min", "p25", "median", "p75", "max", "missing"];
+            const fmt = (v) => v === undefined ? '—' : (Number.isInteger(v) ? v : fmtNum(v));
+            let html = header('Summary Statistics', 'describe()-style statistics per feature — measured, derived and extra dataset columns. "missing" includes rise/fall times of 0 (not measured).') +
+                `<div style="overflow-x:auto;"><table class="eda-table"><thead><tr><th>Feature</th>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
+            Object.keys(d).forEach(f => {
+                html += `<tr><td>${escapeHtml(featureLabel(f))}</td>${cols.map(c => `<td>${fmt(d[f][c])}</td>`).join('')}</tr>`;
+            });
+            html += '</tbody></table></div>';
+            document.getElementById('plot-area').innerHTML = html;
+        }
+
+        function rateColor(r) {
+            if (r === null || r === undefined) return '#1f2937';
+            const t = Math.min(1, r / 0.5);  // 50%+ = full red
+            return `rgb(255,${Math.round(255 - 160 * t)},${Math.round(255 - 200 * t)})`;
+        }
+
+        function showDataQuality() {
+            destroyChart();
+            const q = analyticsData.data_quality;
+            const pct = (v) => `${(v * 100).toFixed(1)}%`;
+            let html = header('Data Quality', 'Blank values, zeros and statistical outliers (beyond 1.5×IQR) per measured column. A rise/fall time of exactly 0 means "not measured": it is excluded from every chart, and the sequence models fill it from the other pulses of the track.') +
+                `<div style="overflow-x:auto;"><table class="eda-table"><thead><tr><th>Column</th><th>Blank</th><th>Zero</th><th>Outliers</th><th>Min</th><th>Max</th></tr></thead><tbody>` +
+                q.overall.map(r => `<tr><td>${escapeHtml(r.column)}</td>
+                    <td>${r.missing} (${pct(r.missing_pct)})</td>
+                    <td>${r.zeros} (${pct(r.zero_pct)})${r.zero_is_missing && r.zeros ? ' — not measured' : ''}</td>
+                    <td>${r.outliers} (${pct(r.outlier_pct)})</td>
+                    <td>${fmtNum(r.min)}</td><td>${fmtNum(r.max)}</td></tr>`).join('') + '</tbody></table></div>';
+            if (q.affected_columns.length) {
+                html += `<div class="card-title" style="margin-top:18px;">Missing / Not-Measured Rate by Class</div>
+                    <div class="hint" style="margin-bottom:10px;">Share of each class's rows where the value is blank or (rise/fall) zero. Similar rates across classes are fine; a gap concentrated in some classes is a bias risk — a model could learn "missing" itself as a class signal.</div>
+                    <div style="overflow-x:auto;"><table class="eda-table"><thead><tr><th>Class</th><th>Rows</th>${q.affected_columns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>` +
+                    q.by_class.map(r => `<tr><td>${escapeHtml(r.class)}</td><td>${r.rows}</td>${q.affected_columns.map(c =>
+                        `<td class="rate-cell" style="background:${rateColor(r.rates[c])}">${r.rates[c] === null ? '—' : pct(r.rates[c])}</td>`).join('')}</tr>`).join('') +
+                    '</tbody></table></div>';
+            } else {
+                html += '<div class="hint" style="margin-top:12px;">No blank values and no zero rise/fall times — nothing missing.</div>';
+            }
+            document.getElementById('plot-area').innerHTML = html;
+        }
+
+        function showCorrelation() {
+            if (!analyticsData) return;
+            destroyChart();
+            const { columns, matrix } = analyticsData.correlation;
+            const corrColor = (v) => {
+                if (v === null || v === undefined) return '#1f2937';
+                const t = Math.max(-1, Math.min(1, v));
+                if (t >= 0) { const c = Math.round(255 * (1 - t)); return `rgb(255,${c},${c})`; }
+                const c = Math.round(255 * (1 + t)); return `rgb(${c},${c},255)`;
+            };
+            let html = header('Correlation Heatmap', 'Pearson correlation between features (-1 to +1). Strong red/blue cells are features that move together — likely redundant as model inputs (e.g. PRI and PRF, or PW and PW × PRI).') +
+                `<div style="overflow-x:auto;"><table class="eda-table"><thead><tr><th></th>${columns.map(c => `<th>${escapeHtml(featureLabel(c))}</th>`).join('')}</tr></thead><tbody>`;
+            columns.forEach((rowName, i) => {
+                html += `<tr><td>${escapeHtml(featureLabel(rowName))}</td>`;
+                matrix[i].forEach(v => {
+                    html += `<td style="background:${corrColor(v)};color:#111;font-weight:bold;text-align:center;">${v === null ? '—' : v.toFixed(2)}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+            document.getElementById('plot-area').innerHTML = html;
+        }
+
+        function showClassBalance() {
+            if (!analyticsData) return;
+            const d = analyticsData.class_diversity;
+            const diversityHtml = d ? `
+                <div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr); padding: 0; gap: 12px; margin-bottom: 14px;">
+                    <div class="metric-block"><div class="metric-value">${d.num_classes}</div><div class="metric-label">Labels</div></div>
+                    <div class="metric-block"><div class="metric-value">${d.shannon_entropy_normalized ?? '—'}</div><div class="metric-label">Normalized Entropy (1.0 = perfectly even)</div></div>
+                    <div class="metric-block"><div class="metric-value">${d.imbalance_ratio}×</div><div class="metric-label">Max/Min Class Ratio</div></div>
+                </div>` : '';
+            document.getElementById('plot-area').innerHTML = header('Class Balance', 'Row count per class label in the loaded dataset.') +
+                `${diversityHtml}<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>`;
+            const ctx = document.getElementById('plot-canvas').getContext('2d');
+            destroyChart();
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: Object.keys(analyticsData.class_counts), datasets: [{ label: 'Rows', data: Object.values(analyticsData.class_counts), backgroundColor: '#10b981' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // ---------------- Feature usefulness ----------------
+
+        const RANKING_METRICS = {
+            mi_norm: { label: 'Mutual Information (normalized, 0–1)', log: false,
+                explain: 'How much knowing this feature alone reduces uncertainty about the class — 1.0 would identify the class perfectly. Catches non-linear and multi-modal separation.' },
+            anova_f: { label: 'ANOVA F-score (log scale)', log: true,
+                explain: 'Ratio of between-class to within-class variance — high when class means are far apart relative to their spread. Misses multi-modal classes (e.g. operating modes) that MI catches.' },
+            ks_unknown: { label: 'Known vs Unknown separation (KS, 0–1)', log: false,
+                explain: 'Kolmogorov–Smirnov distance between known-class rows and unknown (held-out + noise) rows — how differently unknown emitters look on this feature. High = useful for open-set (unknown threat) detection, independent of how well it separates the known classes.' },
+        };
+
+        function showFeatureRanking(metric = 'mi_norm') {
+            destroyChart();
+            const rows = analyticsData.feature_ranking.filter(r => r[metric] !== null)
+                .sort((a, b) => b[metric] - a[metric]);
+            const m = RANKING_METRICS[metric];
+            const fmt = (v) => v === null ? '—' : fmtNum(v);
+            document.getElementById('plot-area').innerHTML = header('Feature Ranking',
+                'How useful each feature is <b>on its own</b>, computed on the rows where it was measured (known classes only, except the KS column). Use it to choose features on the Training page: low-ranked features add little alone, though they can still help in combination — check with a training run.') +
+                `<div class="scatter-controls"><div><label>Rank by</label><select id="rank-metric" onchange="showFeatureRanking(this.value)">
+                    ${Object.entries(RANKING_METRICS).map(([k, v]) => `<option value="${k}" ${k === metric ? 'selected' : ''}>${v.label}</option>`).join('')}
+                </select></div></div>
+                <div class="hint" style="margin-bottom:8px;">${m.explain}</div>
+                <div style="height:${Math.max(220, rows.length * 30 + 60)}px;"><canvas id="plot-canvas"></canvas></div>
+                <div style="overflow-x:auto; margin-top:14px;"><table class="eda-table"><thead><tr><th>Feature</th><th>MI (norm.)</th><th>ANOVA F</th><th>Known vs Unknown (KS)</th><th>Coverage</th></tr></thead><tbody>` +
+                analyticsData.feature_ranking.map(r => `<tr><td>${escapeHtml(featureLabel(r.feature))}</td><td>${fmt(r.mi_norm)}</td><td>${fmt(r.anova_f)}</td><td>${fmt(r.ks_unknown)}</td><td>${(r.coverage * 100).toFixed(1)}%</td></tr>`).join('') +
+                '</tbody></table></div>';
+            currentChart = new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: 'bar',
+                data: { labels: rows.map(r => featureLabel(r.feature)), datasets: [{ label: m.label, data: rows.map(r => r[metric]), backgroundColor: metric === 'ks_unknown' ? '#f59e0b' : '#00d2ff' }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: { x: { type: m.log ? 'logarithmic' : 'linear', title: { display: true, text: m.label }, ...(m.log ? {} : { min: 0, max: 1 }) } } }
+            });
+        }
+
+        // Histogram viewer: any feature, linear/log bins, grouped by nothing / class / known-vs-unknown.
+        const HIST_HINTS = {
+            pri_us: 'PRI spans orders of magnitude between radar types, so log bins show structure linear bins flatten — each peak is a family or operating mode.',
+            prf_hz: 'Pulse Repetition Frequency (1 / PRI). Low PRF (long-range search), medium and high PRF (Doppler/track) regimes appear as separate humps on the log scale.',
+            tb_product: 'Time-bandwidth product = pulse width (µs) × bandwidth (MHz). ≈1 is a simple unmodulated pulse; ≫1 means pulse compression (chirped/coded waveform) — a strong waveform-type discriminant.',
+        };
+
+        function showHistogramViewer(opts) {
+            destroyChart();
+            const feats = analyticsData.features;
+            const feature = opts.feature && feats.includes(opts.feature) ? opts.feature : (document.getElementById('hv-feature')?.value || feats[0]);
+            const group = opts.group ?? 'none';
+            const dist = analyticsData.distributions;
+            const logAvailable = !!dist.features[feature]?.log;
+            const log = (opts.log ?? false) && logAvailable;
+            const titles = { class: 'Per-Class Distributions', known: 'Known vs Unknown' };
+            const hints = {
+                none: 'Distribution across all rows.',
+                class: `Share of each class's rows per bin (the ${dist.classes.length} most populous known classes${dist.classes_truncated ? ', others omitted' : ''}). Curves that overlap little mean the feature separates those classes well.`,
+                known: 'Share of known-class rows vs held-out (unknown) classes vs unstructured noise per bin. Where the unknown curves sit apart from the known one, this feature helps detect unknown emitters (open-set).',
+            };
+            document.getElementById('plot-area').innerHTML = header(titles[group] || 'Histogram Viewer',
+                `${hints[group]} ${HIST_HINTS[feature] || ''}`) +
+                `<div class="scatter-controls">
+                    <div><label>Feature</label><select id="hv-feature">${feats.map(f => `<option value="${f}" ${f === feature ? 'selected' : ''}>${escapeHtml(featureLabel(f))}</option>`).join('')}</select></div>
+                    <div><label>Bins</label><select id="hv-scale" ${logAvailable ? '' : 'disabled'}>
+                        <option value="linear" ${!log ? 'selected' : ''}>Linear</option><option value="log" ${log ? 'selected' : ''}>Log scale${logAvailable ? '' : ' (n/a: values ≤ 0)'}</option></select></div>
+                    <div><label>Colour by</label><select id="hv-group">
+                        <option value="none" ${group === 'none' ? 'selected' : ''}>Nothing (all rows)</option>
+                        <option value="class" ${group === 'class' ? 'selected' : ''}>Class</option>
+                        <option value="known" ${group === 'known' ? 'selected' : ''}>Known vs unknown</option></select></div>
+                </div>
+                <div id="hv-note" class="hint" style="margin-bottom:6px;"></div>
+                <div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>`;
+            const rerender = () => showHistogramViewer({
+                feature: document.getElementById('hv-feature').value,
+                log: document.getElementById('hv-scale').value === 'log',
+                group: document.getElementById('hv-group').value,
+            });
+            ['hv-feature', 'hv-scale', 'hv-group'].forEach(id => document.getElementById(id).onchange = rerender);
+
+            const block = dist.features[feature]?.[log ? 'log' : 'linear'];
+            if (!block) { document.getElementById('hv-note').innerText = 'No measured values for this feature.'; return; }
+            if (feature === 'tb_product') {
+                const compressed = block.edges.slice(0, -1).reduce((s, e, i) => s + (e >= 10 ? block.total[i] : 0), 0);
+                const total = block.total.reduce((a, b) => a + b, 0);
+                document.getElementById('hv-note').innerText = `${(compressed / total * 100).toFixed(1)}% of pulses have a time-bandwidth product ≥ 10 (pulse compression).`;
+            }
+            const share = (counts) => { const t = counts.reduce((a, b) => a + b, 0) || 1; return counts.map(c => c / t * 100); };
+            let datasets, yTitle;
+            if (group === 'class') {
+                datasets = dist.classes.map((c, i) => ({ label: c, data: share(block.by_class[c]), borderColor: PALETTE[i % PALETTE.length], backgroundColor: PALETTE[i % PALETTE.length], borderWidth: 1.5, pointRadius: 0, tension: 0.25 }));
+                yTitle = '% of the class';
+            } else if (group === 'known') {
+                datasets = Object.keys(block.by_group).map(g => ({ label: GROUP_NAMES[g], data: share(block.by_group[g]), borderColor: GROUP_COLORS[g], backgroundColor: GROUP_COLORS[g], borderWidth: 2, pointRadius: 0, tension: 0.25 }));
+                yTitle = '% of the group';
+            } else {
+                datasets = [{ label: 'Pulses', data: block.total, backgroundColor: '#00d2ff', barPercentage: 1.0, categoryPercentage: 0.95 }];
+                yTitle = 'Pulses';
+            }
+            currentChart = new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: group === 'none' ? 'bar' : 'line',
+                data: { labels: block.labels, datasets },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: group !== 'none', labels: { boxWidth: 10, font: { size: 9 } } } },
+                    scales: { x: { title: { display: true, text: featureLabel(feature) + (log ? ' (log bins)' : '') }, ticks: { maxRotation: 60, minRotation: 45, font: { size: 8 } } },
+                              y: { title: { display: true, text: yTitle }, beginAtZero: true } } }
+            });
+        }
+
+        // ---------------- Radar / ESM ----------------
+
+        function showSpectrum() {
+            destroyChart();
+            const s = analyticsData.rf_spectrum;
+            const present = [...new Set(s.bands)];
+            document.getElementById('plot-area').innerHTML = header('RF Spectrum Occupancy',
+                'Pulse count vs carrier frequency in fine bins, coloured by radar band — the classic ESM spectrum view. Narrow spikes are fixed-frequency emitters; broad humps are frequency-agile emitters or families spread by their operating modes.') +
+                `<div class="band-legend">${present.map(b => `<span><i style="background:${BAND_COLORS[b] || '#9ca3af'}"></i>${b}</span>`).join('')}</div>
+                <div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>`;
+            currentChart = new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: 'bar',
+                data: { labels: s.labels, datasets: [{ label: 'Pulses', data: s.counts, backgroundColor: s.bands.map(b => BAND_COLORS[b] || '#9ca3af'), barPercentage: 1.0, categoryPercentage: 1.0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false },
+                    tooltip: { callbacks: { title: (items) => `${items[0].label} MHz (${s.bands[items[0].dataIndex]})` } } },
+                    scales: { x: { title: { display: true, text: 'Carrier frequency (MHz, bin centre)' }, ticks: { maxTicksLimit: 16 } }, y: { title: { display: true, text: 'Pulses' } } } }
+            });
+        }
+
+        function showBandDistribution() {
+            if (!analyticsData) return;
+            document.getElementById('plot-area').innerHTML = header('Frequency Band Breakdown', 'Standard radar band designations (L/S/C/X/Ku/K/Ka) — coarse spectrum occupancy by band.') +
+                '<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>';
+            destroyChart();
+            const bandOrder = ["L-BAND", "S-BAND", "C-BAND", "X-BAND", "KU-BAND", "K-BAND", "KA-BAND"];
+            const dist = analyticsData.band_distribution;
+            const labels = bandOrder.filter(b => dist[b] !== undefined);
+            currentChart = new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Pulses', data: labels.map(b => dist[b]), backgroundColor: labels.map(b => BAND_COLORS[b]) }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // Scatter of the row sample, coloured by label; null values are skipped (and counted).
+        function scatterDatasets(xKey, yKey, positiveOnly) {
+            const byLabel = {};
+            let skipped = 0;
+            analyticsData.scatter_sample.forEach(r => {
+                const x = r[xKey], y = r[yKey];
+                if (x === null || y === null || x === undefined || y === undefined || (positiveOnly && (x <= 0 || y <= 0))) { skipped++; return; }
+                const lbl = r._label ?? 'all';
+                (byLabel[lbl] = byLabel[lbl] || []).push({ x, y });
+            });
+            const datasets = Object.keys(byLabel).sort().map((lbl, i) => ({
+                label: lbl, data: byLabel[lbl], backgroundColor: PALETTE[i % PALETTE.length], pointRadius: 2.5,
+            }));
+            return { datasets, skipped };
+        }
+
+        function scatterChart(datasets, xKey, yKey, xLog, yLog, extra = {}) {
+            return new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: 'scatter',
+                data: { datasets },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: datasets.length <= 30, labels: { boxWidth: 10, font: { size: 9 } } } },
+                    scales: {
+                        x: { type: xLog ? 'logarithmic' : 'linear', title: { display: true, text: featureLabel(xKey) + (xLog ? ' (log)' : '') } },
+                        y: { type: yLog ? 'logarithmic' : 'linear', title: { display: true, text: featureLabel(yKey) + (yLog ? ' (log)' : '') } },
+                    }, ...extra }
+            });
+        }
+
+        function showPresetScatter(xKey, yKey, xLog, yLog, title, hint) {
+            destroyChart();
+            const { datasets, skipped } = scatterDatasets(xKey, yKey, xLog || yLog);
+            document.getElementById('plot-area').innerHTML = header(title, hint + ` Showing a ${analyticsData.scatter_sample.length}-row sample${skipped ? `; ${skipped} rows without both values skipped` : ''}.`) +
+                '<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>';
+            currentChart = scatterChart(datasets, xKey, yKey, xLog, yLog);
+        }
+
+        function showPwVsPri() {
+            destroyChart();
+            const { datasets, skipped } = scatterDatasets('pri_us', 'pulse_width', true);
+            const pris = datasets.flatMap(d => d.data.map(p => p.x));
+            const lo = Math.min(...pris), hi = Math.max(...pris);
+            // Duty cycle = PW / PRI, so each fixed duty cycle is a straight line on log-log axes.
+            [0.001, 0.01, 0.1].forEach((dc, i) => datasets.push({
+                label: `duty ${dc * 100}%`, type: 'line', data: [{ x: lo, y: lo * dc }, { x: hi, y: hi * dc }],
+                borderColor: ['#6b7280', '#9ca3af', '#d1d5db'][i], borderDash: [6, 4], borderWidth: 1.2, pointRadius: 0, fill: false,
+            }));
+            document.getElementById('plot-area').innerHTML = header('PW vs PRI (Duty Cycle Map)',
+                `The classic radar mode chart on log-log axes. Dashed lines are constant duty cycle (0.1%, 1%, 10%): long-PRI/low-duty points are search behaviour, short-PRI/high-duty points are track and illumination. Each family's operating modes appear as a trail along these lines. ${skipped ? `${skipped} sample rows skipped (missing values).` : ''}`) +
+                '<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>';
+            currentChart = scatterChart(datasets, 'pri_us', 'pulse_width', true, true);
+        }
+
+        function showRiseFall() {
+            const zeros = analyticsData.data_quality.overall.filter(q => q.zero_is_missing && q.zeros);
+            const zeroNote = zeros.length ? ` Rows with a rise or fall time of 0 (not measured: ${zeros.map(q => `${q.zeros} ${q.column}`).join(', ')} in the whole dataset) are excluded.` : '';
+            showPresetScatter('rise_time_ns', 'fall_time_ns', false, false, 'Rise vs Fall Time — Transmitter Fingerprint',
+                'Rise and fall times are set by the transmitter hardware (amplifier, modulator), so each family forms a tight cluster largely independent of its operating mode — a hardware fingerprint that complements frequency/PRI.' + zeroNote);
+        }
+
+        function showPriPatternDistribution() {
+            if (!analyticsData) return;
+            document.getElementById('plot-area').innerHTML = header('PRI Modulation Pattern Distribution', 'Which PRI modulation types (constant, jittered, staggered, sliding, wobulated, dwell-and-switch, and PGRI pulse groups when included) this dataset\'s families use — a primary classical ESM discriminant.') +
+                '<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>';
+            destroyChart();
+            const dist = analyticsData.pri_pattern_distribution;
+            const labels = Object.keys(dist);
+            currentChart = new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Rows', data: labels.map(k => dist[k]), backgroundColor: PALETTE.slice(0, labels.length) }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        let priTraceCharts = [];
+        function showPriTraces(mode) {
+            destroyChart();
+            priTraceCharts.forEach(c => c.destroy()); priTraceCharts = [];
+            const tr = analyticsData.pri_traces;
+            const hasDev = tr.traces.some(t => t.deviation_pct);
+            mode = mode === 'pri' || !hasDev ? 'pri' : 'dev';
+            const colors = { constant: '#9ca3af', jittered: '#00d2ff', staggered: '#f59e0b', dwell_switch: '#ef4444', sliding: '#10b981', wobulated: '#a78bfa', pgri: '#ec4899' };
+            document.getElementById('plot-area').innerHTML = header('PRI Patterns Over Time',
+                `One example track per ${tr.by === 'pri_pattern' ? 'PRI pattern' : 'class'}: PRI against pulse number, so you can see each pattern repeat — constant (flat line), jittered (noise around a level), staggered (a short cycle of levels repeating), sliding (a repeating ramp), wobulated (a repeating sine), dwell-and-switch (blocks of levels), PGRI (a long gap followed by a burst of short intervals, repeating). Red points are pulses whose interval is disturbed by a missed pulse (the interval doubles, an upward spike) or a spurious pulse (the interval is cut, a downward spike). ` +
+                (hasDev ? 'In “µs” mode the whole track also steps up and down when the emitter changes operating mode (search … illumination scale the PRI by 0.3–1.4 for 15–60 pulses); “deviation” mode divides that out and shows the modulation alone.' : '')) +
+                `<div class="scatter-controls"><div><label>Show</label><select id="pt-mode"><option value="dev" ${mode === 'dev' ? 'selected' : ''} ${hasDev ? '' : 'disabled'}>Deviation from the mode's base PRI (%) — the pattern alone</option><option value="pri" ${mode === 'pri' ? 'selected' : ''}>PRI as measured (µs)</option></select></div></div>
+                <div id="pt-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px;"></div>`;
+            document.getElementById('pt-mode').onchange = (e) => showPriTraces(e.target.value);
+            const grid = document.getElementById('pt-grid');
+            tr.traces.forEach((t, i) => {
+                const values = mode === 'dev' ? t.deviation_pct : t.pri_us;
+                const wrap = document.createElement('div');
+                wrap.innerHTML = `<div class="hint" style="margin-bottom:2px;"><b style="color:${colors[t.group] || '#e5e7eb'}">${escapeHtml(t.group)}</b> · ${escapeHtml(t.label)} · track ${escapeHtml(t.track_id)}</div><div style="height:170px;"><canvas id="pt-${i}"></canvas></div>`;
+                grid.appendChild(wrap);
+                const disturbed = new Set(t.disturbed);
+                priTraceCharts.push(new Chart(document.getElementById(`pt-${i}`).getContext('2d'), {
+                    type: 'line',
+                    data: { labels: values.map((_, j) => j), datasets: [{ data: values, borderColor: colors[t.group] || PALETTE[i % PALETTE.length], borderWidth: 1.2, tension: 0,
+                        pointRadius: values.map((_, j) => disturbed.has(j) ? 3.5 : 1.5), pointBackgroundColor: values.map((_, j) => disturbed.has(j) ? '#ef4444' : (colors[t.group] || '#00d2ff')), spanGaps: false }] },
+                    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
+                        scales: { x: { title: { display: true, text: 'Pulse number', font: { size: 9 } }, ticks: { maxTicksLimit: 8, font: { size: 8 } } },
+                                  y: { title: { display: true, text: mode === 'dev' ? 'Deviation (%)' : 'PRI (µs)', font: { size: 9 } }, ticks: { font: { size: 8 } } } } },
+                }));
+            });
+        }
+
+        function showPriPatternCheck() {
+            destroyChart();
+            const pc = analyticsData.pri_pattern_check;
+            const colors = { constant: '#9ca3af', jittered: '#00d2ff', staggered: '#f59e0b', dwell_switch: '#ef4444', sliding: '#10b981', wobulated: '#a78bfa', pgri: '#ec4899' };
+            document.getElementById('plot-area').innerHTML = header('PRI Pattern Check — does each family\'s PRI match its label?',
+                'The operating mode multiplies a family\'s PRI by 0.3–1.4 (search … illumination), which hides the PRI pattern in pri_us alone. ' +
+                'pri_deviation_pct removes it: how far each pulse\'s PRI is from its mode\'s base PRI (the generator\'s ground truth, never a model input). ' +
+                'Expected: constant → a spike at 0; jittered → a narrow bell; staggered / dwell-and-switch → a few fixed levels; sliding → flat between about ±10–30%; wobulated → peaks at the ends (a sine spends most time near its extremes); pgri → two levels, all negative: most pulses at the short intra-group PRI (−80…−96%), the group\'s first pulse at the long gap (−60…−4%), since the deviation is measured from the group repetition interval. ' +
+                `Pulses after a missed or spurious pulse are left out (${pc.excluded_disturbed} rows, incl. noise).`) +
+                '<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>' +
+                `<div style="overflow-x:auto; margin-top:10px;"><table class="eda-table"><thead><tr><th style="text-align:left;">Family</th><th>Pattern</th><th>Pulses</th><th>Deviation std (%)</th><th>Min (%)</th><th>Max (%)</th><th>Distinct levels (1%)</th></tr></thead><tbody>
+                ${pc.families.map(f => `<tr><td style="text-align:left;">${escapeHtml(f.label)}</td><td>${escapeHtml(f.pattern)}</td><td>${f.pulses}</td><td>${f.std}</td><td>${f.min}</td><td>${f.max}</td><td>${f.levels}</td></tr>`).join('')}
+                </tbody></table></div>`;
+            currentChart = new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: 'line',
+                data: { labels: pc.bins.map(b => b.toFixed(0)), datasets: pc.patterns.map(p => ({
+                    label: `${p.pattern} (${p.pulses} pulses, std ${p.std}%)`, data: p.share, borderColor: colors[p.pattern] || '#e5e7eb',
+                    backgroundColor: colors[p.pattern] || '#e5e7eb', pointRadius: 1.5, tension: 0.15 })) },
+                options: { responsive: true, maintainAspectRatio: false,
+                    scales: { x: { title: { display: true, text: 'PRI deviation from the mode base PRI (%)' } }, y: { title: { display: true, text: 'Share of the pattern\'s pulses' } } } },
+            });
+        }
+
+        function showModeByClass() {
+            destroyChart();
+            const m = analyticsData.mode_by_class;
+            const modeColors = { search: '#38bdf8', acquisition: '#10b981', track: '#f59e0b', illumination: '#ef4444' };
+            document.getElementById('plot-area').innerHTML = header('Operating Mode by Class',
+                'How each known family\'s pulses split across operating modes (search → acquisition → track → illumination). Mode shifts frequency, PW and PRI together, so a family seen mostly in one mode during training may be misclassified when it switches mode.') +
+                '<div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>';
+            currentChart = new Chart(document.getElementById('plot-canvas').getContext('2d'), {
+                type: 'bar',
+                data: { labels: m.classes, datasets: m.modes.map((mode, i) => ({ label: mode, data: m.counts[i], backgroundColor: modeColors[mode] || PALETTE[i % PALETTE.length] })) },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } },
+                    scales: { x: { stacked: true, ticks: { maxRotation: 50, minRotation: 30 } }, y: { stacked: true, title: { display: true, text: 'Pulses' } } } }
+            });
+        }
+
+        // ---------------- Separability ----------------
+
+        function showPCA() {
+            if (!analyticsData) return;
+            const pca = analyticsData.pca_raw;
+            const silhouette = analyticsData.silhouette_raw;
+            const title = 'PCA — Raw Feature Space';
+            const explainer = `2D projection of the standardized per-pulse features, before any model is involved — the baseline separability question every classification task starts with.${pca && pca.columns ? ` Features used: ${pca.columns.map(featureLabel).join(', ')} (features missing in more than 20% of rows are left out).` : ''}`;
+            destroyChart();
+            if (!pca) {
+                document.getElementById('plot-area').innerHTML = `<div class="card-title">${title}</div><div class="empty-state">Not available — the dataset needs labels and at least two complete features.</div>`;
+                return;
+            }
+            const ctx = freshCanvas();
+            const silhouetteHtml = silhouette !== null && silhouette !== undefined
+                ? `<div class="metric-block" style="margin-bottom:10px;"><div class="metric-value">${silhouette.toFixed(3)}</div><div class="metric-label">Silhouette Score (+1 tight/separated, 0 overlapping, negative worse-than-random)</div></div>` : '';
+            document.getElementById('plot-area').insertAdjacentHTML('afterbegin',
+                `<div class="card-title">${title}</div>
+                 <div class="hint" style="margin-bottom:10px;">${escapeHtml(explainer)} Explained variance: PC1 ${(pca.explained_variance_ratio[0] * 100).toFixed(1)}%, PC2 ${((pca.explained_variance_ratio[1] || 0) * 100).toFixed(1)}%.</div>
+                 ${silhouetteHtml}`);
+            const byLabel = {};
+            pca.points.forEach(p => { (byLabel[p.label ?? 'unlabeled'] = byLabel[p.label ?? 'unlabeled'] || []).push({ x: p.x, y: p.y }); });
+            const datasets = Object.keys(byLabel).sort().map((lbl, i) => ({
+                label: lbl, data: byLabel[lbl], backgroundColor: PALETTE[i % PALETTE.length], pointRadius: 3,
+            }));
+            currentChart = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: Object.keys(byLabel).length <= 25, labels: { boxWidth: 10, font: { size: 9 } } } },
+                    scales: { x: { title: { display: true, text: 'PC1' } }, y: { title: { display: true, text: 'PC2' } } }
+                }
+            });
+        }
+
+        // ---------------- Box plots ----------------
+
+        function showBoxplotViewer(feature) {
+            destroyChart();
+            const feats = analyticsData.features.filter(f => analyticsData.boxplot[f]);
+            feature = feature && feats.includes(feature) ? feature : feats[0];
+            document.getElementById('plot-area').innerHTML =
+                `<div class="scatter-controls"><div><label>Feature</label><select id="bp-feature" onchange="showBoxplotViewer(this.value)">
+                    ${feats.map(f => `<option value="${f}" ${f === feature ? 'selected' : ''}>${escapeHtml(featureLabel(f))}</option>`).join('')}
+                </select></div></div><div id="box-area"></div>`;
+            renderBoxplot(feature);
+        }
+
+        function renderBoxplot(feature) {
+            const bp = analyticsData.boxplot[feature];
+            const area = document.getElementById('box-area');
+            if (!bp) { area.innerHTML = `<div class="card-title">${featureLabel(feature)} — Box Plot by Class</div><div class="empty-state">No data.</div>`; return; }
+
+            let allVals = [];
+            bp.stats.forEach(s => { allVals.push(s.min, s.max, ...s.outliers); });
+            const yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+            const pad = (yMax - yMin) * 0.08 || 1;
+            const domainMin = yMin - pad, domainMax = yMax + pad;
+
+            const n = bp.classes.length;
+            const slot = 70, margin = { left: 70, right: 20, top: 20, bottom: 90 };
+            const plotW = n * slot, plotH = 340;
+            const svgW = plotW + margin.left + margin.right, svgH = plotH + margin.top + margin.bottom;
+            const y = (v) => margin.top + plotH - ((v - domainMin) / (domainMax - domainMin)) * plotH;
+
+            let gridlines = '';
+            for (let i = 0; i <= 5; i++) {
+                const v = domainMin + (i / 5) * (domainMax - domainMin);
+                const yy = y(v);
+                gridlines += `<line x1="${margin.left}" y1="${yy}" x2="${margin.left + plotW}" y2="${yy}" stroke="#1f2937" stroke-width="1"/>
+                    <text x="${margin.left - 8}" y="${yy + 3}" fill="#6b7280" font-size="9" text-anchor="end">${fmtNum(v)}</text>`;
+            }
+
+            let boxes = '';
+            bp.classes.forEach((cls, i) => {
+                const s = bp.stats[i];
+                const cx = margin.left + i * slot + slot / 2;
+                const boxW = 34;
+                const color = PALETTE[i % PALETTE.length];
+                boxes += `<line x1="${cx}" y1="${y(s.max)}" x2="${cx}" y2="${y(s.q3)}" stroke="${color}" stroke-width="1.5"/>
+                    <line x1="${cx}" y1="${y(s.min)}" x2="${cx}" y2="${y(s.q1)}" stroke="${color}" stroke-width="1.5"/>
+                    <line x1="${cx - 12}" y1="${y(s.max)}" x2="${cx + 12}" y2="${y(s.max)}" stroke="${color}" stroke-width="1.5"/>
+                    <line x1="${cx - 12}" y1="${y(s.min)}" x2="${cx + 12}" y2="${y(s.min)}" stroke="${color}" stroke-width="1.5"/>
+                    <rect x="${cx - boxW / 2}" y="${y(s.q3)}" width="${boxW}" height="${Math.max(1, y(s.q1) - y(s.q3))}" fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="1.5"/>
+                    <line x1="${cx - boxW / 2}" y1="${y(s.median)}" x2="${cx + boxW / 2}" y2="${y(s.median)}" stroke="${color}" stroke-width="2.5"/>
+                    ${s.outliers.map(o => `<circle cx="${cx}" cy="${y(o)}" r="2.5" fill="${color}" fill-opacity="0.7"/>`).join('')}
+                    <text x="${cx}" y="${margin.top + plotH + 16}" fill="#9ca3af" font-size="9" text-anchor="end" transform="rotate(-40 ${cx} ${margin.top + plotH + 16})">${escapeHtml(cls)}</text>`;
+            });
+
+            area.innerHTML = `<div class="card-title">${escapeHtml(featureLabel(feature))} — Box Plot by Class</div>
+                <div class="hint" style="margin-bottom:10px;">Median, interquartile range, and whiskers (1.5×IQR) per class${bp.classes.length < Object.keys(analyticsData.class_counts).length ? ` — showing the ${bp.classes.length} most populous classes` : ''}. Dots are statistical outliers beyond the whiskers.</div>
+                <div style="overflow-x:auto;"><svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">${gridlines}${boxes}</svg></div>`;
+        }
+
+        // ---------------- Scatter explorer ----------------
+
+        function showScatterExplorer() {
+            if (!analyticsData) return;
+            destroyChart();
+            const feats = analyticsData.features;
+            const opts = feats.map(f => `<option value="${f}">${escapeHtml(featureLabel(f))}</option>`).join('');
+            document.getElementById('plot-area').innerHTML = header('Scatter Explorer', 'Pairwise relationship between any two features, coloured by class — whether two features separate classes well together.') +
+                `<div class="scatter-controls">
+                    <div><label>X Axis</label><select id="scatter-x">${opts}</select></div>
+                    <div><label>Y Axis</label><select id="scatter-y">${opts}</select></div>
+                    <div><label>Scale</label><select id="scatter-scale"><option value="linear">Linear</option><option value="log">Log-log</option></select></div>
+                    <div style="flex:0 0 120px;"><button onclick="renderScatter()">Plot</button></div>
+                </div>
+                <div class="plot-canvas-wrap"><canvas id="plot-canvas"></canvas></div>`;
+            if (feats.length > 1) document.getElementById('scatter-y').value = feats[1];
+            renderScatter();
+        }
+
+        function renderScatter() {
+            if (!analyticsData) return;
+            const xKey = document.getElementById('scatter-x').value;
+            const yKey = document.getElementById('scatter-y').value;
+            const log = document.getElementById('scatter-scale').value === 'log';
+            destroyChart();
+            const { datasets } = scatterDatasets(xKey, yKey, log);
+            currentChart = scatterChart(datasets, xKey, yKey, log, log);
+        }
+
+        loadSources().then(loadDataset);
+    </script>
+</body>
+</html>

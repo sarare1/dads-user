@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DADS - PhD Research Project — Live Simulation</title>
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/escape.js"></script>
+    <link rel="stylesheet" href="/static/shared.css">
+    <script src="/static/sequence_selector.js"></script>
+    <style>
+        .tv-controls { display: grid; grid-template-columns: 2.2fr repeat(6, 1fr) auto; gap: 10px; align-items: end; padding: 12px 15px 0; }
+        .tv-controls label { margin-top: 0; font-size: 8pt; }
+        .tv-controls button { margin-top: 0; }
+        .tv-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 15px; padding: 15px; }
+        table.track-log tr { cursor: pointer; }
+        table.track-log tr.selected td { background: rgba(0,210,255,0.08); }
+        table.track-log tr.ended td { opacity: 0.55; }
+        /* Operator-console layout: aggregate situational-awareness tiles + a scrolling threat
+           log are the PRIMARY view (what a real EW console leads with — see AN/SLQ-32 DCC
+           human-factors research: operators need to track multiple concurrent emitters, not
+           just the single latest reading). The technical charts (classifier confidence,
+           prototype distance trend) are demoted to a secondary column — genuinely useful for a
+           technical/PhD audience, but "why" rather than "what," per ISA-101's display
+           hierarchy (overview first, diagnostic detail second). */
+        .stats-row {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+            padding: 15px 15px 0 15px;
+        }
+        .stat-tile {
+            background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px;
+            padding: 12px; text-align: center; cursor: pointer;
+        }
+        .stat-tile:hover { border-color: var(--accent-blue); }
+        .stat-tile .value { font-size: 20pt; font-weight: bold; }
+        .stat-tile .label { font-size: 8pt; color: #9ca3af; text-transform: uppercase; margin-top: 4px; }
+        .stat-tile.total .value { color: var(--accent-blue); }
+        .stat-tile.known .value { color: #34d399; }
+        .stat-tile.unknown .value { color: #fcd34d; }
+        .stat-tile.rejected .value { color: #fca5a5; }
+        .stat-tile.accuracy .value { color: var(--accent-purple); }
+
+        .threat-log-card { display: flex; flex-direction: column; overflow: hidden; }
+        .threat-log-scroll { flex: 1; overflow-y: auto; }
+        table.threat-log { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+        table.threat-log th {
+            position: sticky; top: 0; background: var(--panel-bg); color: var(--accent-blue);
+            text-transform: uppercase; font-size: 7.5pt; padding: 6px 8px; text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        table.threat-log td { padding: 5px 8px; border-bottom: 1px solid #1f2937; white-space: nowrap; }
+        table.threat-log tr.row-green td:first-child { border-left: 3px solid #34d399; }
+        table.threat-log tr.row-orange td:first-child { border-left: 3px solid #fcd34d; }
+        table.threat-log tr.row-red td:first-child { border-left: 3px solid #fca5a5; }
+        .verdict-chip {
+            display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 7.5pt;
+            font-weight: bold; text-transform: uppercase;
+        }
+        .verdict-chip.green { background: #064e3b; color: #34d399; }
+        .verdict-chip.orange { background: #78350f; color: #fcd34d; }
+        .verdict-chip.red { background: #7f1d1d; color: #fca5a5; }
+        .side-panels { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .side-panels .card { flex: 0 0 auto; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>DADS - PhD Research Project</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-tag" id="tv-conn">IDLE</span>
+            <a href="#" onclick="logout(); return false;" class="status-tag" style="background:#374151; color:#e5e7eb; cursor:pointer; text-decoration:none;">Logout</a>
+        </div>
+    </header>
+    <nav class="top-nav">
+        <a href="/">Training</a>
+        <a href="/validation">Testing</a>
+        <a href="/inference">Inference</a>
+        <a href="/dataset">Dataset</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/live" class="active">Live Simulation</a>
+        <a href="/help">Help</a>
+    </nav>
+    <div id="track-view">
+        <div class="tv-controls">
+            <div id="tv-seq-selector"></div>
+            <div><label>Emitters at once</label><input type="number" id="tv-emitters" value="5" min="1" max="12"></div>
+            <div><label>Unknown share (%)</label><input type="number" id="tv-unknown" value="30" min="0" max="100"></div>
+            <div><label>Missed pulses (%)</label><input type="number" id="tv-missed" value="2" min="0" max="50" step="0.5"></div>
+            <div><label>Spurious pulses (%)</label><input type="number" id="tv-spurious" value="2" min="0" max="50" step="0.5"></div>
+            <div><label>Duration (s)</label><input type="number" id="tv-duration" value="120" min="5" max="900"></div>
+            <div><label>Pulses / second</label><input type="number" id="tv-rate" value="20" min="1" max="100"></div>
+            <button id="tv-toggle" onclick="toggleTrackSim()">Start</button>
+        </div>
+        <div class="hint" style="padding: 6px 15px 0;">Simulated emitters (families the sequence model was trained on, plus held-out families and noise for the unknown share) transmit at once; every pulse arrives already assigned to its track, as from a de-interleaver. After each pulse the track's last ≤ k pulses are classified — watch a track's decision firm up as it grows. Tracks end and new emitters appear. Ground truth is shown for scoring only; it is never given to the model.</div>
+        <div class="stats-row">
+            <div class="stat-tile total"><div class="value" id="tv-stat-tracks">0</div><div class="label">Tracks Seen</div></div>
+            <div class="stat-tile known"><div class="value" id="tv-stat-known">0</div><div class="label">Verified Known (now)</div></div>
+            <div class="stat-tile unknown"><div class="value" id="tv-stat-unknown">0</div><div class="label">Unknown Threats (now)</div></div>
+            <div class="stat-tile rejected"><div class="value" id="tv-stat-rejected">0</div><div class="label">Rejected (now)</div></div>
+            <div class="stat-tile accuracy"><div class="value" id="tv-stat-acc">—</div><div class="label">Correct at track end</div></div>
+        </div>
+        <div class="tv-grid">
+            <div class="card threat-log-card">
+                <div class="card-title">Tracks</div>
+                <div class="hint" style="margin-bottom:8px;">Newest activity first. Click a track for its PRI pattern and how its decision developed. "Correct": known family → right class and verified; unknown → not verified as known.</div>
+                <div class="threat-log-scroll" style="max-height: 60vh;">
+                    <table class="threat-log track-log" id="tv-table">
+                        <thead><tr><th>Track</th><th>Pulses</th><th>Predicted Class</th><th>Conf.</th><th>Distance</th><th>Verdict</th><th>Ground Truth</th><th>Correct?</th></tr></thead>
+                        <tbody id="tv-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="side-panels">
+                <div class="card">
+                    <div class="card-title">Selected Track</div>
+                    <div id="tv-sel-verdict" class="verdict-box badge-green">CLICK A TRACK</div>
+                    <div class="telemetry-row"><span>Track / pulses:</span><b id="tv-sel-id">-</b></div>
+                    <div class="telemetry-row"><span>Predicted / truth:</span><b id="tv-sel-class">-</b></div>
+                    <div class="telemetry-row"><span>Nearest prototype:</span><b id="tv-sel-near">-</b></div>
+                    <div class="telemetry-row"><span>ECM action:</span><b id="tv-sel-ecm">-</b></div>
+                </div>
+                <div class="card"><div class="card-title">Confidence as pulses arrive</div><div style="height:150px;"><canvas id="tv-chart-conf"></canvas></div></div>
+                <div class="card"><div class="card-title">PRI vs pulse number</div><div style="height:150px;"><canvas id="tv-chart-pri"></canvas></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------------------------------------------------------------- live simulation of de-interleaved tracks
+        const TV_COLOR = { VERIFIED_KNOWN_TARGET: '#34d399', UNKNOWN_THREAT_ANOMALY: '#fcd34d', OOD_NOISE_REJECTED: '#fca5a5' };
+                // A rejected track still has a nearest known family; show it as that, not as the track's class.
+        const escLive = (t) => String(t).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+        const shownClass = (cls, verdict) => verdict === 'VERIFIED_KNOWN_TARGET' ? cls : `UNKNOWN (nearest known: ${cls})`;
+        const TV_CHIP = { VERIFIED_KNOWN_TARGET: 'green', UNKNOWN_THREAT_ANOMALY: 'orange', OOD_NOISE_REJECTED: 'red' };
+        let tvWs = null, tvTracks = new Map(), tvSelected = null, tvCharts = {}, tvEnded = { n: 0, correct: 0 }, tvRender = null;
+
+        function initTvCharts() {
+            const mk = (id, yTitle, log) => new Chart(document.getElementById(id).getContext('2d'), {
+                type: 'line', data: { labels: [], datasets: [{ data: [], borderColor: '#00d2ff', pointRadius: 2, borderWidth: 1, pointBackgroundColor: [] }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
+                    scales: { x: { title: { display: true, text: 'Pulses' } }, y: { type: log ? 'logarithmic' : 'linear', title: { display: true, text: yTitle }, ...(log ? {} : { min: 0, max: 1 }) } } },
+            });
+            tvCharts.conf = mk('tv-chart-conf', 'Confidence', false);
+            tvCharts.pri = mk('tv-chart-pri', 'PRI (µs)', true);
+        }
+
+        function toggleTrackSim() { tvWs ? stopTrackSim() : startTrackSim(); }
+
+        function startTrackSim() {
+            tvTracks = new Map(); tvSelected = null; tvEnded = { n: 0, correct: 0 };
+            document.getElementById('tv-body').innerHTML = '';
+            const q = (id) => encodeURIComponent(document.getElementById(id).value);
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = `${proto}//${location.host}/ws/sequence_live?emitters=${q('tv-emitters')}&unknown_pct=${(parseFloat(document.getElementById('tv-unknown').value) || 0) / 100}` +
+                `&missed_pct=${(parseFloat(document.getElementById('tv-missed').value) || 0) / 100}&spurious_pct=${(parseFloat(document.getElementById('tv-spurious').value) || 0) / 100}` +
+                `&duration=${q('tv-duration')}&rate=${q('tv-rate')}`;
+            tvWs = new WebSocket(url);
+            const conn = document.getElementById('tv-conn');
+            document.getElementById('tv-toggle').innerText = 'Stop';
+            conn.innerText = 'CONNECTING';
+            tvWs.onmessage = (ev) => {
+                const m = JSON.parse(ev.data);
+                if (m.type === 'start') { conn.innerText = `LIVE · run #${m.run_id} (${m.backbone_type}, k=${m.window})`; return; }
+                if (m.type === 'error') { conn.innerText = 'ERROR'; alert(m.error); return; }
+                if (m.type === 'complete') { conn.innerText = 'COMPLETE'; return; }
+                onTrackPulse(m);
+            };
+            tvWs.onclose = () => { tvWs = null; document.getElementById('tv-toggle').innerText = 'Start'; if (conn.innerText.startsWith('LIVE') || conn.innerText === 'CONNECTING') conn.innerText = 'STOPPED'; };
+            tvRender = setInterval(renderTracks, 400);
+        }
+
+        function stopTrackSim() { if (tvWs) tvWs.close(); clearInterval(tvRender); renderTracks(); }
+
+        function onTrackPulse(m) {
+            let t = tvTracks.get(m.track_id);
+            if (!t) { t = { id: m.track_id, truth: m.truth, known: m.known, length: m.track_length, conf: [], pri: [], verdicts: [] }; tvTracks.set(m.track_id, t); }
+            t.n = m.pulses_seen; t.decision = m.decision; t.correct = m.correct; t.ended = m.ended; t.last = Date.now();
+            t.conf.push(m.decision.confidence); t.verdicts.push(m.decision.verdict); t.pri.push(m.pulse.pri_us);
+            if (m.ended) { tvEnded.n += 1; tvEnded.correct += m.correct ? 1 : 0; }
+            if (tvSelected === null) tvSelected = m.track_id;
+        }
+
+        function renderTracks() {
+            const tracks = [...tvTracks.values()].sort((a, b) => (a.ended - b.ended) || (b.last - a.last)).slice(0, 40);
+            const active = [...tvTracks.values()].filter(t => !t.ended);
+            const count = (v) => active.filter(t => t.decision.verdict === v).length;
+            document.getElementById('tv-stat-tracks').innerText = tvTracks.size;
+            document.getElementById('tv-stat-known').innerText = count('VERIFIED_KNOWN_TARGET');
+            document.getElementById('tv-stat-unknown').innerText = count('UNKNOWN_THREAT_ANOMALY');
+            document.getElementById('tv-stat-rejected').innerText = count('OOD_NOISE_REJECTED');
+            document.getElementById('tv-stat-acc').innerText = tvEnded.n ? `${(tvEnded.correct / tvEnded.n * 100).toFixed(0)}% (${tvEnded.n})` : '—';
+            document.getElementById('tv-body').innerHTML = tracks.map(t => `<tr class="${t.ended ? 'ended' : ''}${t.id === tvSelected ? ' selected' : ''}" onclick="selectTrack(${t.id})">
+                <td>#${t.id}${t.ended ? ' (ended)' : ''}</td><td>${t.n} / ${t.length}</td><td>${escLive(shownClass(t.decision.class, t.decision.verdict))}</td><td>${t.decision.confidence.toFixed(3)}</td>
+                <td>${t.decision.distance}</td><td><span class="verdict-chip ${TV_CHIP[t.decision.verdict]}">${t.decision.verdict.replace(/_/g, ' ')}</span></td>
+                <td>${escLive(t.truth)}</td><td>${t.correct ? '✓' : '✗'}</td></tr>`).join('');
+            showSelectedTrack();
+        }
+
+        function selectTrack(id) { tvSelected = id; renderTracks(); }
+
+        function showSelectedTrack() {
+            const t = tvTracks.get(tvSelected);
+            if (!t || !tvCharts.conf) return;
+            const box = document.getElementById('tv-sel-verdict');
+            box.innerText = t.decision.verdict;
+            box.className = `verdict-box badge-${t.decision.color.toLowerCase()}`;
+            document.getElementById('tv-sel-id').innerText = `#${t.id} · ${t.n} of ${t.length} pulses${t.ended ? ' (ended)' : ''}`;
+            document.getElementById('tv-sel-class').innerText = `${shownClass(t.decision.class, t.decision.verdict)} / ${t.truth}`;
+            document.getElementById('tv-sel-near').innerText = `${t.decision.nearest_prototype} (distance ${t.decision.distance})`;
+            document.getElementById('tv-sel-ecm').innerText = t.decision.ecm_trigger;
+            const labels = t.conf.map((_, i) => i + 1);
+            tvCharts.conf.data.labels = labels;
+            tvCharts.conf.data.datasets[0].data = t.conf;
+            tvCharts.conf.data.datasets[0].pointBackgroundColor = t.verdicts.map(v => TV_COLOR[v]);
+            tvCharts.conf.update();
+            tvCharts.pri.data.labels = labels;
+            tvCharts.pri.data.datasets[0].data = t.pri;
+            tvCharts.pri.update();
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        renderSequenceSelector('tv-seq-selector');
+        initTvCharts();
+    </script>
+</body>
+</html>

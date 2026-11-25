@@ -1,0 +1,47 @@
+# Pushing a tag v<MAJOR>.<MINOR>.<PATCH> (equal to the VERSION file) publishes a GitHub release:
+# the CI checks run first, then the source archive and its SHA-256 checksum are attached.
+# See docs/RELEASING.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write   # create the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Tag must match the VERSION file
+        run: |
+          test "${GITHUB_REF_NAME}" = "v$(tr -d '[:space:]' < VERSION)" || {
+            echo "Tag ${GITHUB_REF_NAME} does not match VERSION $(cat VERSION)"; exit 1; }
+      - name: Build source archive + checksum
+        run: |
+          name="dads-${GITHUB_REF_NAME}"
+          git archive --format=zip --prefix="${name}/" -o "${name}.zip" "${GITHUB_REF_NAME}"
+          sha256sum "${name}.zip" > SHA256SUMS
+          cat SHA256SUMS
+      - name: Release notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v h="## [$v]" 'index($0, h) == 1 {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > notes.md
+          test -s notes.md || echo "Release ${GITHUB_REF_NAME}" > notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "dads-${GITHUB_REF_NAME}.zip" SHA256SUMS \
+            --repo "${GITHUB_REPOSITORY}" --title "DADS ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag

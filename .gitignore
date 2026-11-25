@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Runtime-generated data (regenerated automatically on first run — see README)
+/data/
+
+# Editor / tool-local state
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Stray full copy of the project (with its own venv/ and data/) - never commit it
+/dads/

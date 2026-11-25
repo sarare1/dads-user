@@ -1,0 +1,13 @@
+# Weekly update proposals (pull requests) for the pinned Python packages and the pinned GitHub Actions.
+# After merging a Python update, regenerate the pins: python scripts/pin_requirements.py
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

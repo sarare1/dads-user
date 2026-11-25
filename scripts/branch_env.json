@@ -1,0 +1,5 @@
+{
+  "_comment": "Files that belong to ONE environment. Each branch keeps its own version; files listed for the other branch must not exist here. Keep this file identical on both branches.",
+  "main": ["RUN_ENVIRONMENT.md", "deploy_server.sh", "deploy"],
+  "main_local": ["RUN_ENVIRONMENT.md", "setup_local.bat", "setup_local.sh", "run_local.bat", "run_local.sh"]
+}

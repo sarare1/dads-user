@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DADS - PhD Research Project — Help</title>
+    <link rel="stylesheet" href="/static/shared.css">
+    <style>
+        .toc { columns: 2; column-gap: 28px; font-size: 9pt; line-height: 1.8; margin: 0; padding-left: 18px; }
+        .toc a { color: var(--accent-blue, #00d2ff); text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin: 10px 0 4px; }
+        .flow .box { flex: 1 1 120px; background: #0b1220; border: 1px solid #1f2937; border-radius: 6px; padding: 8px; font-size: 8.3pt; text-align: center; }
+        .flow .box b { display: block; color: var(--accent-blue, #00d2ff); margin-bottom: 3px; font-size: 8.6pt; }
+        .flow .arrow { align-self: center; color: #6b7280; font-size: 12pt; }
+        .step { border-left: 3px solid var(--accent-blue, #00d2ff); padding: 2px 0 2px 14px; margin: 22px 0 8px; }
+        .step h3 { margin: 0 0 6px; font-size: 11pt; color: #e5e7eb; }
+        .step h3 .n { color: var(--accent-blue, #00d2ff); margin-right: 6px; }
+        .formula { background: #0b1220; border: 1px solid #1f2937; border-radius: 6px; padding: 10px 12px; margin: 8px 0; font-family: Consolas, 'Courier New', monospace; font-size: 8.8pt; color: #e5e7eb; white-space: pre-wrap; line-height: 1.6; overflow-x: auto; }
+        .formula .c { color: #6b7280; }
+        .why { background: rgba(0,210,255,0.06); border: 1px solid rgba(0,210,255,0.25); border-radius: 6px; padding: 8px 12px; margin: 8px 0; font-size: 9pt; line-height: 1.55; }
+        .why b:first-child { color: var(--accent-blue, #00d2ff); }
+        .note { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 6px; padding: 8px 12px; margin: 8px 0; font-size: 9pt; line-height: 1.55; }
+        .note b:first-child { color: #fbbf24; }
+        .page-content p, .page-content li { font-size: 9.3pt; line-height: 1.6; }
+        .page-content ul { margin: 4px 0; padding-left: 20px; }
+        .dgrid { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 4px; margin: 10px 0; font-size: 8.6pt; max-width: 760px; }
+        .dgrid div { padding: 8px 10px; border-radius: 5px; }
+        .dgrid .hd { background: #111827; color: #9ca3af; font-weight: bold; text-align: center; }
+        .dgrid .g { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.5); }
+        .dgrid .o { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.5); }
+        .dgrid .r { background: rgba(239,68,68,0.13); border: 1px solid rgba(239,68,68,0.45); }
+        .dgrid b { display: block; margin-bottom: 2px; }
+        .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; }
+        .twocol > div { background: #0b1220; border: 1px solid #1f2937; border-radius: 6px; padding: 8px 12px; font-size: 9pt; line-height: 1.55; }
+        .twocol h4 { margin: 0 0 4px; font-size: 9.3pt; color: var(--accent-blue, #00d2ff); }
+        #help-search { position: sticky; top: 0; z-index: 60; background: var(--bg-color, #0b1220); padding: 10px 0 8px; margin: 0 0 6px; }
+        #help-search-input { width: 100%; box-sizing: border-box; padding: 10px 14px; font-size: 10.5pt; border-radius: 8px; border: 1px solid var(--border-color); background: #0b1220; color: inherit; margin: 0; }
+        #help-search-input:focus { outline: 2px solid var(--accent-blue, #00d2ff); }
+        #help-search .hs-kbd { position: absolute; right: 14px; top: 20px; font-size: 8pt; color: #6b7280; border: 1px solid #374151; border-radius: 4px; padding: 0 6px; pointer-events: none; }
+        #help-search-results { position: absolute; left: 0; right: 0; top: 100%; max-height: 62vh; overflow-y: auto; background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.5); padding: 6px; }
+        .hs-count, .hs-empty { font-size: 8.5pt; color: #9ca3af; padding: 6px 8px; }
+        .hs-crumb { font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: var(--accent-blue, #00d2ff); padding: 8px 8px 2px; }
+        .hs-item { font-size: 9pt; line-height: 1.5; padding: 6px 8px; border-radius: 6px; cursor: pointer; color: #d1d5db; }
+        .hs-item:hover, .hs-item.active { background: rgba(0,210,255,.12); }
+        .hs-item mark { background: rgba(245,158,11,.35); color: #fff; border-radius: 2px; padding: 0 1px; }
+        .hs-more { font-size: 8pt; color: #6b7280; padding: 0 8px 4px; }
+        .hs-flash { animation: hsflash 2.6s ease-out; }
+        @keyframes hsflash { 0%, 40% { background: rgba(245,158,11,.30); box-shadow: 0 0 0 4px rgba(245,158,11,.30); } 100% { background: transparent; box-shadow: 0 0 0 4px transparent; } }
+        @media (max-width: 700px) { .toc { columns: 1; } .flow .arrow { display: none; } .twocol { grid-template-columns: 1fr; } .dgrid { grid-template-columns: 90px 1fr 1fr; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>DADS - PhD Research Project</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-tag">HELP</span>
+            <a href="#" onclick="logout(); return false;" class="status-tag" style="background:#374151; color:#e5e7eb; cursor:pointer; text-decoration:none;">Logout</a>
+        </div>
+    </header>
+    <nav class="top-nav">
+        <a href="/">Training</a>
+        <a href="/validation">Testing</a>
+        <a href="/inference">Inference</a>
+        <a href="/dataset">Dataset</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/live">Live Simulation</a>
+        <a href="/help" class="active">Help</a>
+    </nav>
+
+    <div class="page-content" style="max-width: 980px;">
+
+        <div id="help-search">
+            <input type="search" id="help-search-input" placeholder="Search Help — e.g. threshold, stop training, confusion matrix, &quot;pulse repetition&quot;" autocomplete="off" spellcheck="false">
+            <span class="hs-kbd">/</span>
+            <div id="help-search-results" style="display:none;"></div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Contents</h2>
+            <ol class="toc">
+                <li><a href="#e2e">How DADS works — end to end</a></li>
+                <li><a href="#s7">F1 · Output heads &amp; embeddings</a></li>
+                <li><a href="#s8">F2 · Training objective (losses)</a></li>
+                <li><a href="#s9">F3 · Class prototypes (K-means)</a></li>
+                <li><a href="#s10">F4 · Prototype search &amp; distance</a></li>
+                <li><a href="#emb">F4b · Embedding size d &amp; memory</a></li>
+                <li><a href="#s11">F5 · Decision rule</a></li>
+                <li><a href="#s12">F6 · Evaluation metrics</a></li>
+                <li><a href="#seq">Sequence model: classifying pulse trains</a></li>
+                <li><a href="#sq1">S1 · Input: a de-interleaved track</a></li>
+                <li><a href="#sq2">S2 · Sequence dataset (simulated tracks)</a></li>
+                <li><a href="#sq3">S3 · Per-pulse &amp; Δ features, windows</a></li>
+                <li><a href="#sqtrace">Track → window → decision, traced</a></li>
+                <li><a href="#sq4">S4 · Temporal encoders</a></li>
+                <li><a href="#sq5">S5 · Training split &amp; prototypes</a></li>
+                <li><a href="#sq6">S6 · Sequence thresholds (calibration)</a></li>
+                <li><a href="#sq7">S7 · Track decision &amp; metrics</a></li>
+                <li><a href="#sq8">S8 · Testing a sequence model</a></li>
+                <li><a href="#sq9">S9 · Inference, Live Simulation, deployment</a></li>
+                <li><a href="#sq10">S10 · Explainability</a></li>
+                <li><a href="#sq11">S11 · Adding a new family later (incremental training)</a></li>
+                <li><a href="#glossary">Glossary &amp; page reference</a></li>
+            </ol>
+        </div>
+
+        <div class="glossary-section" id="e2e">
+            <h2>How DADS Works — End to End</h2>
+            <p>DADS decides whether an intercepted radar emitter belongs to a <b>known</b> family, is an <b>unknown</b> emitter, or is noise. It classifies a <b>window of k consecutive pulses of one emitter</b> (a de-interleaved track): the input is a k × F matrix of per-pulse features, including Δ (change) features that expose the PRI pattern and the frequency agility. It decides per window and votes over a track's windows. The whole sequence-specific part — input, dataset, features, encoders, training, thresholds, testing, deployment — is described in <a href="#seq" style="color:var(--accent-blue);">S1–S11</a> (S11: adding a new family to a deployed model).</p>
+            <p>The steps <b>F1–F6</b> below explain the parts every model shares: the two output heads, the training losses, the class prototypes, the prototype search and the embedding size, the decision rule, and the evaluation metrics. Each says <b>what</b> happens, gives the exact <b>formula</b> (taken from the code) and <b>why</b>. Symbols: F = number of selected per-pulse features, k = window length, K = number of classes, d = embedding size (Training setting, default 128 — see <a href="#emb" style="color:var(--accent-blue);">Embedding size &amp; memory</a>), ‖v‖ = vector length (L2 norm).</p>
+
+            <div class="step" id="s7"><h3><span class="n">F1</span>From fused features to two opinions — the output heads</h3>
+                <p><b>Two different "fusions" — don't mix them up.</b> DADS combines information twice, at two different points:</p>
+                <div class="twocol">
+                    <div><h4>① Feature fusion (inside the Hybrid backbone)</h4>The temporal CNN's 64 numbers and the temporal Transformer's 64 numbers are joined and mixed by a learned layer into one feature vector <b>f</b> (<a href="#sq4" style="color:var(--accent-blue);">S4</a>). This happens <i>inside the network</i>, before any decision exists, and only in the Hybrid backbone.</div>
+                    <div><h4>② Decision fusion (the "Fusion Verdict")</h4>The two <i>heads'</i> opinions — classifier confidence and prototype distance — are combined by a fixed rule into the final verdict (F5). This happens <i>after</i> the network, for every backbone.</div>
+                </div>
+                <p><b>One feature vector, two heads.</b> Whatever the encoder, it produces one vector f of d numbers per window (default d = 128). That same f feeds two separate heads, each answering a different question:</p>
+                <div class="formula">                            ┌─► Classifier head ─► p (K probabilities) ─► class, confidence c        "WHICH known family?"
+window ─► X̃ ─► encoder ─► f ──┤
+                            └─► Metric head ─────► e (d numbers, ‖e‖ = 1) ─► nearest prototype ─► distance         "LIKE ANY known family?"
+<span class="c">encoder = temporal Hybrid, CNN, Transformer or GRU — all produce the same kind of f (d numbers)</span>
+
+<span class="c">Classifier head — one linear layer + softmax</span>
+z   = W_c · f + b_c                       W_c: K × d — one weight row per class, scored against f
+p_k = exp(z_k) / Σ_i exp(z_i)             softmax: K probabilities, all ≥ 0, summing to exactly 1
+class = argmax_k p_k                      confidence c = max_k p_k   (between 1/K and 1)
+
+<span class="c">Metric head — two layers, then L2 normalization</span>
+v = W_2 · ReLU(W_1 · f + b_1) + b_2       W_1, W_2: d × d
+e = v / ‖v‖                               the EMBEDDING: a point on the d-dimensional unit sphere</div>
+                <div class="twocol">
+                    <div><h4>Classifier head — a relative judgement</h4>Compares the window against the known families <i>only</i> and says which fits best. Softmax forces the probabilities to sum to 1, so even a window unlike every family must be assigned to one of them — and if it lies far on one side of the learned class boundaries it gets a <b>high</b> confidence. High confidence means "clearly more like family A than the others", not "definitely family A".</div>
+                    <div><h4>Metric head — an absolute judgement</h4>Places the window as a point in a space where training (triplet loss) packed each family into tight clusters. The distance to the nearest stored family prototype measures how <b>typical</b> the window is of anything known. A window from a never-seen family lands in empty space → large distance, whatever the classifier says.</div>
+                </div>
+                <div class="why"><b>Why both heads read the same f:</b> during training both losses (cross-entropy from the classifier, triplet from the metric head) send gradients back into the same backbone, so f is shaped to serve both — separating families <i>and</i> forming compact clusters. One forward pass gives both outputs, and both opinions are about the same internal description of the pulse. The classifier has an output for every class id in the dataset; held-out classes are never a training target, so their outputs are only ever pushed down.</div>
+            </div>
+
+            <div class="step" id="s8"><h3><span class="n">F2</span>Training objective — what the network is optimized for</h3>
+                <div class="formula">L = L_CE + L_triplet + λ_RPL · ( L_RPL + L_adv )          minimized with Adam, batches of 64, for the chosen epochs
+
+<span class="c">Cross-entropy (classifier head): push up the true class's probability</span>
+L_CE = −log p_y
+
+<span class="c">Triplet loss (metric head): same-class embeddings closer than other-class ones by a margin α</span>
+L_triplet = max( 0,  d(e_a, e_p) − d(e_a, e_n) + α )
+  a = anchor window, p = random same-class window, n = random other-class window (picked within each batch)
+  d = 1 − cos(·,·) for the cosine metric,  d = ‖e_a − e_b‖ for euclidean
+
+<span class="c">Reciprocal Points Learning (RPL): one learned point o_k per class representing "not class k"</span>
+d_k = ‖e − o_k‖²        logits = γ · d_k  (γ = 8)        L_RPL = cross-entropy(γ·d, y)
+open-set score = −(d_top1 − d_top2)     (small gap between the two farthest points = ambiguous = unknown)
+
+<span class="c">ARPL (optional): a generator G makes fake "confusing" embeddings ẽ for a class; the model learns to keep them ambiguous</span>
+L_adv = mean( max(0, gap(ẽ) − 0.1)² )          while G separately minimizes cross-entropy(γ·d(ẽ), y)</div>
+                <div class="note"><b>Implementation note:</b> in the current code the cross-entropy is applied to the softmax <i>probabilities</i> p (PyTorch's CrossEntropyLoss applies a softmax itself), i.e. the loss is −log softmax(p)_y rather than −log p_y. It still trains the classifier in the right direction but with weaker gradients. Kept as-is so existing runs stay comparable; changing it is a one-line fix that would alter future results.</div>
+                <div class="why"><b>Why these losses together:</b> cross-entropy makes the classifier accurate on known families. The triplet loss shapes the <i>embedding space</i> — tight same-family clusters with margin α between families — which is what the prototype distance (open-set detection) relies on. RPL (λ_RPL, default 0.1) is a second, independently-scored open-set method trained on the same embedding, reported as its own AUROC so the two can be compared; the small weight keeps it from overpowering the main objective. ARPL hardens RPL's boundary with adversarial examples, at some cost in stability.</div>
+            </div>
+
+            <div class="step" id="s9"><h3><span class="n">F3</span>Class prototypes — summarizing each family in embedding space</h3>
+                <div class="formula">for each known class c:
+  E_c = embeddings of its validation windows
+  if |E_c| ≥ 6:  K-means with 3 clusters:   minimize Σ_i min_{s=1..3} ‖e_i − μ_s‖²    (10 restarts)
+  else:          one centre = mean(E_c)
+  each centre μ_s → μ_s / ‖μ_s‖                                     (back onto the unit sphere)</div>
+                <div class="why"><b>Why up to 3 per class:</b> one family appears in several operating modes, so its embeddings can form several separate clusters. A single average could land in the empty space <i>between</i> them, making genuine windows of that family look far from "their" centre. Sub-centres follow the real clusters. Validation (not training) windows are used so the prototypes reflect how the model behaves on data it wasn't fitted to.</div>
+            </div>
+
+            <div class="step" id="s10"><h3><span class="n">F4</span>Prototype search &amp; distance</h3>
+                <p>Every run stores its prototypes in <code>prototypes.json</code>: for each class up to 3 centre vectors of d numbers (the model's embedding size) plus metadata (class label, frequency band). For each window, its embedding e is the <b>query</b>, compared with every stored centre; the nearest one gives the label and the distance:</p>
+                <div class="formula">query q = e / ‖e‖
+
+metric      score s                        distance d (larger = more unusual)
+cosine      s = q·c / (‖q‖ ‖c‖)            d = 1 − s          range 0 … 2
+euclidean   s = ‖q − c‖                    d = s              range 0 … 2
+
+nearest prototype = the stored centre with the smallest d  →  label, frequency band, distance d</div>
+                <div class="why"><b>Why it works:</b> training pulled same-family embeddings together (triplet loss), so "close in embedding space" ≈ "same family". <b>Useful fact:</b> because both q and every prototype have length 1, ‖q − c‖² = 2 − 2·cos(q, c). Cosine and euclidean therefore pick the <i>same</i> nearest prototype; they differ only in the distance scale (euclidean d = √(2·d_cosine)), so the distance threshold must be chosen to match the metric. Runs from before v1.2.0 may be labelled “dot”: that option was always computed as cosine (all vectors have length 1, so the dot product equals the cosine) and has been removed. The metric also sets the distance used inside the triplet loss during training.</div>
+            </div>
+
+            <div class="step" id="emb"><h3><span class="n">F4b</span>Embedding size d — why 128, and how much memory it takes</h3>
+                <p><b>What d is.</b> One embedding = one vector of d numbers per sequence window. In DADS the backbone's feature vector f and the stored embedding e have the <b>same size d</b>, so d is the width of the whole "description" both heads read — not only the size of the stored prototypes. It is a Training-page setting (<b>Embedding Size (d)</b>, in the Sequence Model card), recorded with every run (Run History column "Emb. d"); default 128.</p>
+                <div class="formula"><span class="c">the layers whose size depends on d (everything else is unchanged)</span>
+backbone output layer     (input width) × d   (+ d)      e.g. Temporal Hybrid fusion W_h: d × 128
+classifier head  W_c      K × d               (+ K)
+metric head  W_1, W_2     d × d  twice        (+ 2d)
+→ d-dependent weights ≈ (in + K) · d + 2d²
+
+<span class="c">memory per stored vector</span>
+float32           4 · d bytes          d = 16: 64 B      d = 128: 512 B     d = 256: 1 KB
+int8 quantized    1 · d bytes          d = 16: 16 B      d = 128: 128 B      (not used by DADS)
++ metadata (label, band)
+
+prototypes in DADS: P ≤ 3 per class → 20 classes ≈ 50–60 points
+   d = 128: 60 × 512 B ≈ 30 KB (float32)          d = 16: ≈ 4 KB
+the same at library scale, 1,000,000 vectors (d = 128): 512 MB float32 · 128 MB int8</div>
+
+                <p><b>Measured: accuracy vs d.</b> Temporal Hybrid sequence model: 12 families (2 held out), 24 tracks × 96 pulses, k = 32, 10 epochs, 2 datasets; same datasets and training settings, only d changed. Mean values:</p>
+                <div class="formula">d       accuracy   AUROC    AUROC (RPL)   weights
+8       56.3%      0.974    0.520         0.68 MB
+16      96.9%      0.992    0.780         0.69 MB
+32      94.8%      0.990    0.898         0.70 MB
+64      99.3%      1.000    0.826         0.74 MB
+128     100.0%     1.000    0.993         0.88 MB      ← default
+256     100.0%     0.987    0.863         1.34 MB
+(accuracy = closed-set on known families;  AUROC = prototype distance known vs unknown;  weights = float32 state on disk)</div>
+                <div class="why"><b>Reading it:</b> below 64 the <b>accuracy</b> drops (to 56% at d = 8) — not because small vectors can't be stored, but because f is also d wide: 8–32 numbers must carry 20 families × 4 operating modes, so families get squeezed together and the classifier confuses them. Unknown detection (AUROC) holds up longer (≥ 0.99 from d = 16), because "far from everything" is easier than "which one exactly". 128 is the smallest size that was at 100% on every dataset; 256 adds nothing (and was slightly less stable for the open-set score) while costing about 50% more weights. <b>Caveats:</b> one simulated population per seed, short training (15 / 10 epochs) — small d may close part of the gap with longer training; harder real data could need more room. Run your own comparison: train the same dataset with two sizes and compare the runs in Run History.</div>
+
+                <div class="note"><b>d and storage:</b> changing the setting affects only the next training run — a trained model keeps its own d. Memory per stored vector grows linearly with d (4·d bytes in float32), which matters for very large prototype libraries rather than for DADS's few dozen prototypes.</div>
+            </div>
+
+            <div class="step" id="s11"><h3><span class="n">F5</span>Decision rule — fusing the two opinions into one verdict</h3>
+                <p>For every window the server (and the downloaded package) runs the same sequence:</p>
+                <div class="formula">1. track pulses → per-pulse features → standardized k × F window X̃                    (S3)
+2. one forward pass → p (class probabilities) and e (embedding)                      (S4, F1)
+3. confidence c = max_k p_k            predicted class = argmax_k p_k
+4. nearest stored prototype to e → its family label, band, distance d                 (F4)
+5. compare c with τ_c and d with τ_d → verdict → ECM action
+
+if   c ≥ τ_c  and  d ≤ τ_d :  VERIFIED_KNOWN_TARGET    → MONITOR_ONLY
+elif c ≥ τ_c  and  d > τ_d :  UNKNOWN_THREAT_ANOMALY   → AUTOMATED_JAMMER_ENGAGED
+else  (c &lt; τ_c, any d)    :  OOD_NOISE_REJECTED       → ELINT_LOGGING
+
+τ_c = Min Classifier Confidence     τ_d = distance threshold     (both saved with each trained model — S6)
+the track's verdict is the most frequent window verdict                                (S7)</div>
+                <p><b>Decision map</b> — the two thresholds split every pulse into one of these regions:</p>
+                <div class="dgrid">
+                    <div class="hd"></div><div class="hd">d ≤ τ_d &nbsp;(near a known family)</div><div class="hd">d &gt; τ_d &nbsp;(far from every known family)</div>
+                    <div class="hd" style="text-align:left;">c ≥ τ_c<br>(classifier sure)</div>
+                    <div class="g"><b>VERIFIED_KNOWN_TARGET</b>Both opinions agree it is a known emitter. The predicted class is reported.</div>
+                    <div class="o"><b>UNKNOWN_THREAT_ANOMALY</b>The classifier is sure, but the pulse looks like nothing known — the "confidently wrong on a new emitter" case. Flagged as a possible new or spoofed emitter.</div>
+                    <div class="hd" style="text-align:left;">c &lt; τ_c<br>(classifier unsure)</div>
+                    <div class="r"><b>OOD_NOISE_REJECTED</b>Looks similar to a known family, but the classifier can't decide which (e.g. between two similar families). Not acted on; logged.</div>
+                    <div class="r"><b>OOD_NOISE_REJECTED</b>Unsure and unlike anything known — most likely noise or a corrupted measurement. Logged.</div>
+                </div>
+                <p><b>Worked example</b> (illustrative numbers, cosine metric, τ_c = 0.60, τ_d = 0.30):</p>
+                <div class="formula">pulse                          top class (c)        nearest prototype (d)    verdict
+A  known family 03             FAMILY_03 (0.94)     FAMILY_03 (0.08)         0.94 ≥ 0.60, 0.08 ≤ 0.30 → VERIFIED_KNOWN_TARGET
+B  never-seen family           FAMILY_07 (0.91)     FAMILY_07 (0.55)         0.91 ≥ 0.60, 0.55 > 0.30 → UNKNOWN_THREAT_ANOMALY
+C  unstructured noise          FAMILY_12 (0.38)     FAMILY_02 (0.47)         0.38 &lt; 0.60              → OOD_NOISE_REJECTED
+D  known, between 2 families   FAMILY_05 (0.52)     FAMILY_05 (0.12)         0.52 &lt; 0.60              → OOD_NOISE_REJECTED</div>
+                <p>Pulse B is why the rule exists: the classifier alone would have reported FAMILY_07 with 91% confidence. Only the distance shows that the pulse sits far from every prototype of family 07 — and of every other family.</p>
+                <div class="why"><b>Why this design:</b><br>
+                • <b>Confidence is checked first</b> because a pulse the classifier itself can't place is too ambiguous to act on, whatever its distance — the conservative choice is to log it (ELINT) rather than jam it or trust it.<br>
+                • <b>Distance decides only once the classifier is confident</b> — there it separates "confident and typical" (verified) from "confident but atypical" (unknown threat), the case softmax cannot detect on its own.<br>
+                • <b>The response follows severity:</b> a confident-but-unknown emitter may be a new threat, so it gets the active response; verified emitters are monitored; ambiguous pulses are recorded for analysis.</div>
+                <div class="note"><b>Points to know:</b><br>
+                • The rule does <b>not</b> check that the classifier's class and the nearest prototype's family are the same. Both are shown (Inference page, Live threat log); a disagreement is a useful warning sign worth inspecting, even when the verdict is VERIFIED.<br>
+                • Region D (similar to a known family but unsure which) is grouped with noise. That is a conservative design choice — a pulse there is often a real known emitter whose mode lies between two families' clusters.<br>
+                • <b>Choosing thresholds:</b> raising τ_d lets more pulses count as known (fewer false alarms, more new emitters missed); lowering it does the opposite. Raising τ_c sends more pulses to "rejected". A run's Evaluation tab (open-set ROC and verdict split) shows this trade-off for the actual model. τ_d is on the scale of the chosen distance metric (F4).<br>
+                • The same rule runs in Inference, Testing, Live Simulation and the downloaded package, so they give identical verdicts for the same window.</div>
+            </div>
+
+            <div class="step" id="s12"><h3><span class="n">F6</span>Evaluation metrics</h3>
+                <div class="formula">closed-set accuracy = (# known validation windows classified correctly) / (# known validation windows)
+
+precision_c = TP / (TP + FP)     recall_c = TP / (TP + FN)     F1_c = 2·P·R / (P + R)     macro F1 = mean over classes
+
+open-set AUROC  (score = prototype distance d; unknown should score higher)
+  = P( d(random unknown window) > d(random known window) )
+  = ( R_U − n_U(n_U + 1)/2 ) / ( n_U · n_K )        R_U = sum of the unknowns' ranks among all scores
+ROC curve: for each threshold t,  TPR = share of unknowns with d ≥ t,  FPR = share of knowns with d ≥ t</div>
+                <div class="why"><b>Why AUROC:</b> it measures how well the distance separates known from unknown <i>independently of any threshold</i> — 1.0 = perfect, 0.5 = guessing. The verdict split (Evaluation tab) then shows what your chosen τ_c and τ_d actually do. The RPL AUROC is computed the same way with RPL's own score, on the same split.</div>
+            </div>
+
+        </div>
+
+        <div class="glossary-section" id="seq">
+            <h2>Sequence Model — Classifying a Pulse Train</h2>
+            <p>One pulse carries one PRI value, so it can't show a PRI <i>pattern</i> (stagger, sliding, jitter, PGRI groups…) or frequency agility — those exist only across successive pulses. The sequence model classifies a <b>window of k consecutive pulses of one emitter</b>, as delivered by a de-interleaver: it has two output heads (F1), the training losses (F2), class prototypes (F3) and the decision rule (F5), and its own dataset, thresholds and "model in use".</p>
+            <div class="flow">
+                <div class="box"><b>De-interleaver</b>pulses sorted<br>into tracks</div><div class="arrow">→</div>
+                <div class="box"><b>Track</b>ordered pulses of<br>one emitter</div><div class="arrow">→</div>
+                <div class="box"><b>Features per pulse</b>PRI, ΔPRI, freq,<br>Δfreq, PW, … (F)</div><div class="arrow">→</div>
+                <div class="box"><b>Standardize</b>(x − μ) / σ<br>per feature</div><div class="arrow">→</div>
+                <div class="box"><b>Window</b>k consecutive<br>pulses (k × F)</div><div class="arrow">→</div>
+                <div class="box"><b>Temporal encoder</b>along the pulses<br>→ f (d numbers)</div><div class="arrow">→</div>
+                <div class="box"><b>Same heads + rule</b>class, embedding,<br>verdict per window</div><div class="arrow">→</div>
+                <div class="box"><b>Track verdict</b>majority vote<br>of its windows</div>
+            </div>
+            <div class="formula"><span class="c">the whole chain for one window, as one formula</span>
+X̃ = Z( Φ_track(pulses s … s+k−1) )                  k × F standardized window
+f = Encoder(X̃)                                      seq_hybrid / seq_cnn / seq_transformer / seq_gru → d numbers
+p = softmax(W_c · f + b_c)                           classifier head  → class, confidence c
+e = L2( W_2 · ReLU(W_1 · f + b_1) + b_2 )            metric head      → embedding, ‖e‖ = 1 → nearest prototype, distance d
+verdict = rule(c, d; τ_c, τ_d)                       as F5, with the sequence model's own τ_c, τ_d
+track verdict = vote over the track's windows</div>
+
+            <div class="step" id="sq1"><h3><span class="n">S1</span>Input: a de-interleaved track (no time of arrival needed)</h3>
+                <div class="formula">one row per pulse, columns in this order:
+  Frequency (MHz), PW (µs), PRI (µs), Modlntype (text), Modlnval, snr (dB), rise (ns), fall (ns), timeBW (Hz),
+  [your own extra columns], instance, class, pulse_idx, true_class_id, [simulator ground truth]
+instance = the track: a text, class name + capture date + number (e.g. RADAR_FAMILY_03_20261030_0007)
+class = the emitter name;  true_class_id = its number, −1 → unknown (held-out family or noise); derived from class when absent
+pulse_idx and true_class_id are bookkeeping, never model inputs; pulse_idx optional: without it the file's row order is the pulse order
+first pulse of a track: no previous pulse → PRI blank → filled with the 2nd pulse's PRI (so its ΔPRI = 0, "no change")
+other missing values (blank, or 0 rise/fall time): leading gap → first measured value;  gaps further in → that track's median
+a track needs ≥ 2 pulses: no decision is made before the 2nd pulse (there is no PRI yet)
+any extra numeric column (e.g. aoa_deg) → can become a feature (S3); a text column (e.g. Platform) → a categorical feature</div>
+                <div class="why"><b>Why no ToA:</b> the model needs the PRI <i>sequence</i>, and PRI_i = ToA_i − ToA_(i−1) is what a de-interleaver reports per pulse anyway. Absolute ToA is only a clock offset and carries no emitter information. <b>Why these fill rules:</b> both use the same emitter only (a dataset-wide average would mix in other emitters), and the first pulse's PRI comes from the very next pulse — known as soon as a decision is possible, so no later pulse is ever used (Live Simulation can't see the future either). <b>Frequency is in MHz and bandwidth in Hz</b> in track data; standardization makes the unit irrelevant to the model.</div>
+                <div class="note"><b>Upload your own tracks:</b> Dataset page → Sequence Pipeline → Upload. instance and class (or true_class_id) are required plus at least one measurement column; files written with the earlier names (track_id, true_label, pri_us, carrier_freq_mhz, pulse_width_us, rise_time_ns, fall_time_ns, bandwidth_hz) are converted. Class ids are renumbered 0…N−1 (−1 stays unknown); the file becomes the Sequence Dataset that sequence models train on. A model trained on it reports the file's own class names (the class column), and a labelled test file is matched to the model's classes by those names — so its ids don't have to match.</div>
+            </div>
+
+            <div class="step" id="sq2"><h3><span class="n">S2</span>Sequence dataset — simulated tracks</h3>
+                <p>Dataset page → Generate. Each radar family c gets a base "archetype", drawn once from the Population Ranges (seeded by the Dataset Seed); a track then adds <b>time order</b> to it:</p>
+                <div class="formula"><span class="c">family archetype</span>
+f_c ~ U(f_min, f_max)    PRI_c ~ U(PRI_min, PRI_max)
+duty_c ~ log-uniform(duty_min, duty_max)  (default 0.1% … 10%)    PW_c = duty_c · PRI_c   (kept in PW_min…PW_max where possible)
+rise_c, fall_c, BW_c ~ U(their ranges)      PRI pattern_c ∈ {constant, jittered, staggered, sliding, wobulated, dwell-switch, PGRI}      frequency agility_c
+
+<span class="c">operating mode m moves frequency, pulse width and PRI together, then measurement noise is added</span>
+f   = f_c · k_f(m)  + N(0, 15 MHz)          mode m        k_f    k_PW   k_PRI
+PW  = PW_c · k_PW(m) + N(0, σ_PW)            search        0.95   1.3    1.4
+PRI = pattern_c( PRI_c · k_PRI(m) )          acquisition   1.00   1.0    1.0
+rise = rise_c + N(0, 1 ns)                   track         1.05   0.6    0.5
+fall = max(0, fall_c + N(0, 1.5 ns))         illumination  1.10   0.4    0.3
+BW   = max(0, BW_c + N(0, 0.5 MHz))
+σ_PW = min(0.2 µs, 10% of the pulse)   (PW ≥ 0.02 µs)</div>
+                <div class="why"><b>Why pulse width comes from a duty cycle:</b> a real transmitter is designed around its duty cycle (PW / PRI, typically 0.1–10%); drawing PW and PRI independently produced families whose pulses were longer than the gap between them — physically impossible. <b>Why operating modes:</b> real multifunction radars change PW, PRI and frequency together when they switch mode, so one family forms several clusters, not one blob — the model must learn that. Held-out families give an honest open-set test (the model has truly never seen them), and noise tracks model the junk a real receiver also intercepts. Bandwidth, fall time and the sequence patterns use separate random streams, so adding them never changes the values an existing seed produces.</div>
+                <div class="formula"><span class="c">PRI of pulse i (in track order), b = PRI_c · k_PRI(mode)</span>
+constant      b
+jittered      b · (1 + N(0, j))                        j ~ U(1%, 5%) per family
+staggered     b · L[i mod n]                           n = 2–5 levels, L ∈ 1 ± 30%, fixed cycle
+sliding       triangular ramp b·(1 − s) … b·(1 + s)    period 16–64 pulses, s = 10–30%
+wobulated     b · (1 + s · sin(2π i / P))              period 12–48 pulses, s = 10–30%
+dwell-switch  b · L[(i div B) mod n]                   blocks of B = 16–48 pulses, n = 2–4 levels
+PGRI          groups of n = 2–8 pulses: n−1 short intervals b·f, then the gap b·(1 − (n−1)·f)   (b = group repetition interval)
+              f, n fitted to the pulse width: PW ≤ 50% of the intra-group PRI in every mode (else the family keeps its pattern)
++ measurement noise N(0, 0.2% · b)
+
+<span class="c">carrier frequency of pulse i (agility, one per family), f₀ = f_c · k_f(mode)</span>
+fixed         f₀                                        + N(0, 1 MHz) on every pulse
+hopping       f₀ · (1 + U(−h, h))  every pulse          h = 2–8%
+stepped       f₀ · (1 + δ · (i mod m))                  δ = 0.3–1%, m = 3–5 steps
+burst         a new random channel f₀ · (1 + U(−h, h)) every 8–32 pulses, fixed within a burst
+
+<span class="c">operating mode: persists for a dwell of 15–60 pulses, then a biased transition (search → acquisition → track → illumination, sometimes back)</span>
+<span class="c">imperfect de-interleaving:</span>
+missed pulse   (rate "missed %")   not intercepted → the next pulse's PRI = sum of both intervals; missed_before = 1
+spurious pulse (rate "spurious %") another emitter's random pulse inserted part-way through an interval → it splits one interval in two;
+                                   is_spurious = 1 on the inserted pulse, spurious_before = 1 on the pulse after it
+noise tracks   ("noise tracks %") whole tracks of unstructured pulses, true_class_id −1
+held-out families: tracks_per_class / 4 tracks each, true_class_id −1</div>
+                <div class="formula"><span class="c">ground-truth reference columns (never model inputs — for checking only)</span>
+pri_pattern, freq_agility, operating_mode       what the family / pulse actually is
+pri_mode_base_us  = b                            the mode's PRI before the pattern
+pri_deviation_pct = (PRI − b) / b × 100          the pattern's own contribution (Analytics → PRI Pattern Check)
+missed_before, spurious_before, is_spurious      which PRIs are disturbed by de-interleaving errors</div>
+                <div class="why"><b>Why:</b> missed and spurious pulses are the two classic de-interleaver errors, so a model trained on clean tracks only would be over-optimistic. Each pattern's parameters come from a separate random stream ("sequence_patterns"), and PGRI from its own stream, so older seeds regenerate unchanged. Track length is exactly "pulses per track": generation continues until that many pulses were intercepted.</div>
+                <div class="note"><b>Limit:</b> num_classes × tracks per class × pulses per track ≤ 3,000,000 pulses. <b>PGRI and pulse width:</b> pulses inside a group are close together, so the intra-group PRI must be longer than the pulse. Each PGRI family's group shape is fitted so PW ≤ 50% of the intra-group PRI in every operating mode (a 2-pulse group if necessary); a family whose pulses are too wide for any group keeps its own pattern (rare now that pulse width follows from a 0.1–10% duty cycle).</div>
+            </div>
+
+            <div class="step" id="sq3"><h3><span class="n">S3</span>Per-pulse features, Δ (change) features and windows</h3>
+                <div class="formula">ΔPRI_i  = PRI_i  − PRI_(i−1)         Δ of the first pulse = 0      (computed inside DADS, per track — never across tracks)
+Δfreq_i = freq_i − freq_(i−1)        ΔPW_i  = PW_i − PW_(i−1)
+duty cycle_i = PW_i / PRI_i           (PW × PRI)_i = PW_i · PRI_i
+
+x_i = [PRI, ΔPRI, freq, Δfreq, PW, ΔPW, BW, rise, fall, duty cycle, PW × PRI]     any subset, F features (default all 11)
+      + for each extra numeric column c of an uploaded track file (e.g. aoa_deg):  c_i  and/or  Δc_i = c_i − c_(i−1)
+
+Δ features only:  x ← sign(x) · ln(1 + |x| / c_j)      c_j = median |Δ| over the training pulses   (signed-log step)
+x̃_ij = (x_ij − μ_j) / σ_j            μ, σ over all pulses of the TRAINING tracks  (σ = 0 → 1)
+X = [x̃_s … x̃_(s+k−1)]                a window of k consecutive pulses: shape k × F   (k = "Window k", default 32)</div>
+                <div class="formula"><span class="c">what Δ shows (examples)</span>
+constant PRI 400, 400, 400 …    → ΔPRI 0, 0, 0              stagger 412, 455, 498, 412 … → ΔPRI +43, +43, −86 (cycle)
+sliding 400, 410, 420 …         → ΔPRI +10, +10 (ramp)      jitter 405, 397, 401 …        → ΔPRI small random ±
+PGRI 7, 7, 7, 7, 7, 36, 7 …     → ΔPRI 0 … +29, −29 (spike once per group)
+fixed frequency                 → Δfreq ≈ 0                 hopping                      → Δfreq large random ±
+stepped                         → Δfreq +δ, +δ, −(m−1)δ     missed pulse                 → PRI doubles, ΔPRI jumps</div>
+                <div class="note"><b>Your own measurements:</b> any extra numeric column in an uploaded track file becomes a selectable sequence feature on the Training page, tagged <i>from dataset</i> — as its value per pulse and as its change from the previous pulse of the same track. It is scaled, trained, explained and packaged like the built-in features. Text columns, constant columns, mostly-blank columns and the reference columns of S2 are ignored. The track simulator can't produce such a column, so a model that uses one can't run on simulated tracks (Live Simulation → Tracks, example tracks, Testing's fresh tracks) — test and run it on track files that contain the column.</div>
+                <div class="why"><b>Why standardize:</b> raw features differ by orders of magnitude (frequency ≈ 10<sup>10</sup> Hz as the model sees it, pulse width ≈ 1 µs). Unscaled, the largest numbers would dominate the first layer and the gradients, and training would be slow and unstable. After scaling every feature has mean 0 and standard deviation 1, so each starts on an equal footing and the network learns their importance itself. μ and σ come from the training tracks only (no information leaks from validation or unknown tracks), are stored inside the model, and are reused unchanged by Testing, Inference, Live Simulation and the downloaded package.<br><b>Why keep both the value and its Δ:</b> Δ alone loses the level (constant 400 µs and constant 800 µs both give ΔPRI = 0); the value alone hides the pattern from any single position. A temporal network could learn differences itself, but explicit Δ features make the pattern easy to learn and visible to permutation importance. <b>Why the signed-log step for Δ:</b> Δ values are heavy-tailed — a hopping family changes frequency by hundreds of MHz per pulse, a stepped family by tens of MHz, a fixed one by ~1 MHz of noise. A plain z-score divides all of them by one large σ (≈ 1.3 GHz), squashing the stepped family's steps to ≈ 0.05 — nearly invisible. After ln(1 + |Δ|/c) the three sit at clearly different levels (≈ 0.01 / 1 / 2–3 before the z-score), and the sign keeps the direction. Models trained before this step was added keep their original scaling.</div>
+            </div>
+
+            <div class="step" id="sqtrace"><h3><span class="n">▶</span>Track → window → decision, traced with real numbers</h3>
+                <p>A Temporal Hybrid model (k = 32, 11 features, 10 epochs, d = 128) trained on a small simulated dataset (12 families, 2 held out, 24 tracks per family, 96 pulses per track); your own model's numbers will differ. The track below is a validation track (never trained on) of RADAR_FAMILY_06: <b>dwell-and-switch PRI, hopping frequency</b>, in illumination mode.</p>
+                <div class="formula"><span class="c">① raw track (first 6 of 96 pulses)</span>
+pulse  PRI       Frequency         PW              timeBW         rise     fall
+0      (blank)   6251.439          16.377          44,292,000     36.1     201.4
+1      207.361   5766.683          15.921          42,910,000     34.7     200.3
+2      206.523   5758.082          16.098          43,918,000     33.1     201.6
+3      207.169   5700.206          16.340          44,936,000     33.7     200.4
+4      206.807   5800.510          15.980          45,228,000         34.3     198.6
+5      206.779   5935.370          16.438          44,952,000         33.3     199.5
+…the PRI later in the same track (de-interleaver output, imperfections included):
+pulse 13: 206.5   14: 151.0  ← dwell switch to the next level      16: 300.8  ← a missed pulse (2 intervals)
+      17: 150.9   18: 301.5  ← missed again     19: 106.1 / 20: 44.8  ← a spurious pulse split one interval
+
+<span class="c">② per-pulse features Φ_track (6 of the 11 columns shown)</span>
+pulse  PRI       ΔPRI      freq (MHz)       Δfreq (MHz)      PW       duty
+0      207.361   0         6251.439         0                16.377   0.079    ← first PRI = the 2nd pulse's, Δ = 0
+1      207.361   0         5766.683         −484.756         15.921   0.077    ← so pulse 1's ΔPRI is a real 0
+2      206.523   −0.838    5758.082         −8.601           16.098   0.078    ← hopping: Δfreq changes size and sign
+3      207.169   +0.646    5700.206         −57.876          16.340   0.079
+
+<span class="c">③ scaling: Δ features get the signed-log step first, then every feature x̃ = (x − μ) / σ (training-track pulses)</span>
+feature   c (Δ only)     μ          σ            example
+PRI       —              404.83     375.30       pulse 2:  (206.523 − 404.83) / 375.30 = −0.528
+ΔPRI      2.07 µs        0.009      2.064        pulse 2:  −ln(1 + 0.838/2.07) = −0.340  →  (−0.340 − 0.009) / 2.064 = −0.169
+Δfreq     71.7 MHz       0.076      1.233        pulse 1:  −ln(1 + 484.8/71.7) = −2.050  →  (−2.050 − 0.076) / 1.233 = −1.724
+PW        —              14.61      18.55        pulse 2:  (16.098 − 14.61) / 18.55 = +0.080
+
+<span class="c">④ window and encoder</span>
+X̃ = rows 0…31 of the standardized matrix      shape 32 × 11
+Temporal Hybrid: CNN branch (64) + Transformer branch (64) → fusion → f (d = 128) → heads
+
+<span class="c">⑤ decisions (τ_c = 0.88; τ_d calibrated at 95% on held-out tracks: 0.0160 for 32-pulse windows)</span>
+window pulses 0–31     RADAR_FAMILY_06   c = 0.999   d = 0.0011   VERIFIED_KNOWN_TARGET
+window pulses 32–63    RADAR_FAMILY_06   c = 1.000   d = 0.0003   VERIFIED_KNOWN_TARGET
+window pulses 64–95    RADAR_FAMILY_06   c = 0.999   d = 0.0018   VERIFIED_KNOWN_TARGET
+track: RADAR_FAMILY_06, votes 3/3, VERIFIED_KNOWN_TARGET → MONITOR_ONLY
+
+<span class="c">⑥ the decision as pulses arrive (from the pulses seen so far only — exactly what Live Tracks shows)</span>
+pulses seen   1        2        3        4        8        16       32
+class         —        06       06       06       06       06       06
+confidence    —        0.978    0.995    0.995    0.999    0.999    0.999
+distance      —        0.0143   0.0084   0.0072   0.0009   0.0002   0.0011
+τ_d (length)  —        0.0598   0.0339   0.0283   0.0160   0.0160   0.0160
+verdict       (wait)   VERIFIED VERIFIED VERIFIED VERIFIED VERIFIED VERIFIED</div>
+                <div class="why"><b>Reading the trace:</b> Δfreq shows the hopping (tens to hundreds of MHz, changing sign) and, later in the track, ΔPRI shows the dwell switch at pulse 14 and the doubled intervals of missed pulses — none of it visible in one pulse. No decision is made at pulse 1 (no PRI yet). From pulse 2 the class is right and the track is verified: a 2-pulse window sits farther from the prototypes (d = 0.014) than a full window (≈ 0.001), so it is compared with the τ_d calibrated for 2-pulse windows (0.060) — the same 95% acceptance of known tracks at every length. The price is weaker unknown detection on very short tracks: in this run the open-set AUROC after the first 2 / 4 / 8 / 16 / 32 pulses was 0.85 / 0.91 / 0.99 / 1.00 / 1.00, with every known track classified correctly from 2 pulses on.</div>
+                        <div class="why"><b>Choosing the window length k, and why windows rather than whole tracks.</b> A window can only reveal a pattern whose cycle fits inside it, so k should be at least about <b>twice the longest PRI cycle</b> you expect: a 4-level stagger repeats every 4 pulses (k = 32 shows it eight times), but a dwell-and-switch cycle can reach about 190 pulses, of which a 32-pulse window sees one level and perhaps one jump — the vote over a track's windows, and the frequency, PW and level themselves, carry those families. Windows are used instead of one input per whole track because (1) every track yields dozens of training examples instead of one, with every starting phase of the pattern; (2) a window has a fixed size whatever the track length (40 to thousands of pulses); (3) a decision is possible after a few pulses and improves as the track grows (Live Simulation) — a whole-track model must wait for the track to end. Joining all of a family's pulses into one long sequence is not an option: it glues different emitters together with artificial jumps and leaves one example per class. Longer patterns across windows can be captured by a learned aggregator over the windows' embeddings in place of the majority vote — not part of DADS yet.</div>
+            </div>
+
+            <div class="step" id="sq4"><h3><span class="n">S4</span>Temporal encoders — running along the pulses</h3>
+                <p>These encoders run across <b>time</b> — along the pulses of a window. All end in pooling over the pulses, so a model trained on k pulses also accepts shorter or longer windows.</p>
+                <div class="formula"><span class="c">Temporal 1D-CNN (seq_cnn) — features are channels, pulses are the axis</span>
+h1 = ReLU(Conv1d_{F→64, width 3}(X))                   each output sees 3 consecutive pulses
+h2 = ReLU(Conv1d_{64→128, width 3, dilation 2}(h1))    → 7 pulses
+h3 = ReLU(Conv1d_{128→128, width 3, dilation 4}(h2))   → 15 pulses
+f  = ReLU(W · [mean_i h3 ; max_i h3] + b)              W: d × 256
+
+<span class="c">Temporal Transformer (seq_transformer) — one token per pulse, order from positional encoding</span>
+t_i = W_in · x̃_i + b_in + PE(i)          PE(i)_{2m} = sin(i / 10000^{2m/64}),  PE(i)_{2m+1} = cos(i / 10000^{2m/64})
+2 layers of: T ← LN(T + MultiHeadAttention(T)),  T ← LN(T + FFN(T))      (4 heads, d = 64, FFN 128)
+f  = ReLU(W · mean_i(t_i) + b)
+
+<span class="c">Temporal Hybrid (seq_hybrid, default) — both encoders in parallel, fused by a learned layer</span>
+f_cnn = Temporal CNN branch(X)  (64 numbers)      f_tf = Temporal Transformer branch(X)  (64 numbers)
+f     = ReLU(W_h · [f_cnn ; f_tf] + b_h)          W_h: d × 128 — learned weighting of the two branches
+
+<span class="c">Bidirectional GRU (seq_gru) — recurrent baseline, hidden size 64, 2 layers</span>
+z_i = σ(W_z x̃_i + U_z h_(i−1)),  r_i = σ(W_r x̃_i + U_r h_(i−1))
+h̃_i = tanh(W x̃_i + U (r_i ⊙ h_(i−1))),  h_i = (1 − z_i) ⊙ h_(i−1) + z_i ⊙ h̃_i      (both directions)
+f  = ReLU(W · [mean_i h_i ; h_last(→) ; h_last(←)] + b)
+
+then the two heads (F1):  p = softmax(W_c f + b_c),   e = normalize(MetricHead(f))</div>
+                <div class="why"><b>Why these four:</b> here neighbouring positions really are related (consecutive pulses), so convolution is natural — dilations let it see a whole stagger cycle or a dwell switch (15 pulses). The Transformer needs positional encoding because the order <i>is</i> the pattern. The <b>Hybrid</b> combines local patterns (CNN) with relations across the whole window (Transformer). The GRU is the classic recurrent baseline for comparison. <b>Why pooling:</b> mean/max over pulses makes the encoder length-agnostic, which is what allows decisions from the 2nd pulse in Live Tracks and the accuracy-vs-pulses curve. <b>Export note:</b> at inference the Transformer runs the same attention computation written with length-free reshapes (identical results), because PyTorch's own attention layer exports to ONNX with the training window length baked in — the downloaded model would otherwise only accept exactly k pulses.</div>
+            </div>
+
+            <div class="step" id="sq5"><h3><span class="n">S5</span>Training split, windows, losses and prototypes</h3>
+                <div class="why"><b>Stopping a long training run:</b> press <b>■ Stop training</b> on the Training page (it appears while a run is going). The run stops within one batch; <b>nothing is saved</b> for it and the model in use stays as it was. The status line always says what the run is doing (loading the dataset, building windows, training, calibrating, building the report); if a run fails, the reason is shown there with a hint — e.g. missing columns, NaN values or too little data. After a page refresh, a run that is still going is re-attached to its status line and Stop button.</div>
+                <div class="formula">split by TRACK and PER FAMILY (fixed split seed = dataset seed), as cross-validation:
+  1. test split:  T % of each family's tracks (and of the unknown tracks) are set aside - never trained on (unless "Also train on the test split")
+  2. the remaining tracks of a family are cut into K buckets;  fold f:  validate on bucket f, train on the other K−1 buckets
+     (T = 20 %, K = 4  →  20 : 20 : 20 : 20 : 20 - three buckets train, one validates, the fifth is the test split)
+  3. from each fold's training tracks 10 % per family are held back for calibration (S6) - too few → τ_d is calibrated on validation windows
+  4. every fold trains its own model (seed s + fold); the fold with the highest validation accuracy is kept. The run's accuracy / AUROC are
+     the MEAN over the folds (the kept fold's own score is the best of several, so optimistic) and the kept model's result on the test split;
+     "Cross-validation off" trains fold 1 only
+  unknown tracks (held-out families + noise) → open-set pool (evaluation only); the test split's unknown tracks are left out of it
+windows:  training stride k/2 (overlapping, more examples)   validation / calibration / open-set stride k (no overlap)
+          a track shorter than k gives no training window
+          half of the training batches: every window cropped to a random 2 … k consecutive pulses
+scaling:  μ, σ fitted on the training tracks' pulses only
+loss:     L = CE + Triplet + λ_RPL · (L_RPL + L_adv)        as F2 (Hyperparameters / RPL settings of the Training form)
+prototypes: ≤ 3 K-means centres per class from the training windows' embeddings (as F3); validation windows are only scored</div>
+                <div class="why"><b>Why a separate test split:</b> validation tracks choose the kept fold and calibrate things, so they are no longer unbiased; the test split is touched only by the Testing page ("The model's held-out test split"), which marks it <i>not independent</i> when you trained on it. <b>Why split by track:</b> overlapping windows of one track are near-copies; splitting by window would put copies in both training and validation and overstate accuracy. <b>Why per family:</b> every family needs training tracks (its prototypes come from them) and validation tracks (to score it) — drawn from all families at once, a small dataset (e.g. 4 tracks per family) left some families with none. <b>Why random crops:</b> Live Simulation decides from the first few pulses of a track; trained on full windows only, the model classified 2-pulse windows right only 75–85% of the time — with crops, 94–100%. <b>Why prototypes from training windows:</b> windows that helped place a prototype sit unusually close to it, so scoring them against it makes the open-set AUROC look better than it is. Validation and open-set windows are therefore only scored, never used for prototypes. <b>Why a separate calibration share:</b> training windows sit unusually close to the prototypes too, so τ_d is calibrated on tracks used for nothing else — an honest estimate of how many fresh known tracks it accepts. <b>Why the mean over folds:</b> the kept fold is chosen because its validation score is the highest, so that score is optimistic; the mean over all folds (and the test split) is the fair estimate. <b>Why a seed:</b> weights, batch order, crops and triplets all follow the run's recorded seed, so a run can be repeated exactly. Training uses the Hyperparameters, Distance Metric and RPL settings of the Training form.</div>
+            </div>
+
+            <div class="step" id="sq6"><h3><span class="n">S6</span>Sequence thresholds — the model's own τ_c and τ_d</h3>
+                <div class="formula">τ_c: blank = the Training form's "Min Classifier Confidence";  or a value set on the Sequence Model card
+τ_d, Auto (default):
+   d_j = distance of calibration window j to its nearest prototype           (known tracks only)
+   τ_d = quantile_q( d_1 … d_n )                     q = "Known windows accepted", default 95%
+   and per window length L < k (2, 3, 4, 6, 8, 12, 16, 24, …): the same quantile over the FIRST L pulses
+   of each calibration track → τ_d(L)  (never below τ_d); a window of n pulses uses τ_d of the largest L ≤ n
+   kept to 6 significant digits (sequence distances are ≈ 0.001 — fixed decimals could round τ_d to 0)
+τ_d, Manual: the value you enter (one value for every length)
+Testing's τ_d override scales the per-length values by the same factor
+both are saved with the run; Run details → Thresholds shows the value, how it was chosen and on what ("24 held-out calibration tracks")</div>
+                <div class="why"><b>Why its own thresholds:</b> a sequence model's embeddings are very tight (in the trace, known windows sit at d ≈ 0.001, while the Training form's default τ_d is 0.42) — a fixed default would accept most unknown tracks as known, so every model calibrates its own. <b>Why per length:</b> prototypes are built from full k-pulse windows; a 2-pulse window carries less evidence and always lands farther away (in the trace: 0.014 vs ≈ 0.001), so one τ_d made every new track "unknown" until ~8 pulses. With τ_d(L), known tracks are accepted at the same 95% rate from their 2nd pulse; unknown tracks are then harder to flag on very short evidence, which the accuracy-vs-pulses AUROC shows honestly. <b>Why calibrate on known data only:</b> τ_d is chosen without ever looking at unknown tracks, so AUROC and unknown-detection results stay honest. q is a direct trade-off: higher q → fewer known emitters flagged, more unknown ones missed. Testing can override τ_c / τ_d to explore the trade-off without retraining.</div>
+            </div>
+
+            <div class="step" id="sq7"><h3><span class="n">S7</span>Track decision and metrics</h3>
+                <div class="formula">window verdict = same rule (c ≥ τ_c, d ≤ τ_d) per window
+track windows: [1..k], [k+1..2k], …  + one final window ending at the last pulse; a track shorter than k → one window of all its pulses
+track class   = most frequent window class      track verdict = most frequent window verdict   (ties → the one seen first)
+               — one rule shared by Testing, Inference, Live and the deployment package
+
+closed-set accuracy        = share of known WINDOWS classified correctly
+open-set AUROC             = AUROC of window distance d, known vs unknown windows (as F6)
+track accuracy             = share of known TRACKS whose vote is the right class
+unknown tracks flagged     = share of unknown tracks whose track verdict is NOT "verified known"
+accuracy vs pulses observed = one decision per track after its FIRST n pulses (n = 2, 4, 8, … 128), computed from those
+                             pulses only — exactly what Live Simulation decides at that moment; accuracy (known) and AUROC</div>
+                <div class="why"><b>Why vote:</b> one window can be fooled (a mode switch, a burst of missed pulses); several windows of the same emitter agreeing is stronger evidence, exactly as an operator waits for a track to "settle". <b>Accuracy vs pulses observed</b> answers "how many pulses must be intercepted to identify the emitter". It starts at 2 pulses (the first decision possible) and uses nothing the receiver wouldn't have had at that moment. It appears in the run's details (Evaluation) and on the Testing page.</div>
+            </div>
+
+            <div class="step" id="sq8"><h3><span class="n">S8</span>Testing a sequence model (Testing page → Sequence Model Test)</h3>
+                <div class="why"><b>Per-emitter results:</b> besides the overall numbers, a sequence test shows <b>per-emitter precision, recall and F1</b>, track accuracy, how often that emitter's windows were verified or rejected, and what it is most often confused with; a <b>confusion matrix</b> (true emitter × voted class, with a "flagged unknown" column); how <b>unknown and noise</b> tracks were handled (flagged versus wrongly accepted as known); a <b>τ_d trade-off</b> chart (known accepted versus unknown rejected at other thresholds); and a searchable table of <b>every track</b> with CSV download. Click <b>Details</b> on a Test History row to reopen the full result of an earlier test (tests run before this was added only have the summary).</div>
+                <div class="formula">test tracks:
+  Fresh tracks of the model's families   same seed, ranges and PGRI setting as the model's dataset, NEW tracks (fresh track seed)
+                                         tracks per class, pulses per track, missed % and spurious % adjustable (blank = as trained)
+  A stored dataset                       any generated or uploaded dataset, chosen by name (the model's own training dataset includes its
+                                         training tracks → optimistic, a sanity check only); an uploaded file is stored as a new dataset
+window: blank = the model's k        τ_c / τ_d override: blank = the model's own thresholds
+scored against the model's STORED prototypes and thresholds → recorded in Test History (Track Accuracy column)</div>
+                <div class="why"><b>Why fresh tracks:</b> new tracks of the same families measure generalization, not memory. Raising missed/spurious % above the training rate measures robustness to a worse de-interleaver. A model that uses dataset columns can't be tested on fresh simulated tracks (the simulator can't produce the column) — use a dataset or an uploaded file.</div>
+            </div>
+
+            <div class="step" id="sq9"><h3><span class="n">S9</span>Using a sequence model: Inference, Live Simulation, deployment</h3>
+                <div class="why"><b>Example tracks:</b> "Generate an example track" on the Inference page takes a real track from the <b>dataset the selected model was trained on</b> (generated or your own upload), under that model's own emitter names, cropped to the pulse count you ask for. By default it comes from the model's held-out test tracks ("Take from" lets you use the whole dataset). Known / unknown (held-out) / noise pick tracks of that kind; the family list shows your emitter names. Only if the dataset has since been deleted is a track simulated, and the page says so.</div>
+                <div class="formula"><span class="c">sequence model in use — serves Inference and Live Simulation</span>
+choose it: the model selector on the Inference / Live Simulation page, or Run details → "Use for Inference / Live Simulation"
+
+Inference page:
+   a track as CSV text, a file or a generated example → windows (S7) → per-window decisions → track verdict
+   + "decision as pulses arrive" chart (pulses seen so far only, from pulse 2, for the first 2k pulses), PRI and frequency charts, window table
+   a 1-pulse track → a clear message (no PRI yet)
+Live Simulation page:
+   several emitters at once (default 5, max 12), each a track of 40–200 pulses; "unknown share" of new tracks are unknown
+   (70% held-out families, 30% noise tracks); missed / spurious % and pulses per second adjustable
+   after every pulse from the 2nd:  decision = classify(last ≤ k pulses of that track, τ_d for that length)
+   correct = known track: right class AND verified    |   unknown track: NOT verified
+Model package (.zip, Run details → Download):
+   model.onnx  [batch, pulses, F] (both dynamic — any number of pulses)   model.torchscript.pt   sequence_inference.py   model_card.json   prototypes.json
+   model_card.json carries the Δ log scales and the per-length τ_d; sequence_inference.py applies them
+   python sequence_inference.py --csv tracks.csv [--per-window] [--out results.csv]     backends: ONNX Runtime / TorchScript / TensorRT</div>
+                <div class="why"><b>Why "last ≤ k pulses" live:</b> the decision should use the most recent behaviour (an emitter can change mode) and be available as early as possible — from the 2nd pulse, when the first PRI exists; the encoder accepts any window length, and the per-length τ_d keeps early decisions as trustworthy for known emitters as later ones (trace ⑥). The Inference page's chart computes every point from the pulses seen so far only, so it matches Live exactly. <b>Deployment:</b> the network expects per-track features (Δ values!) and scaling computed exactly as DADS does — sequence_inference.py does that and was verified to give the server's results for every sequence backbone and backend, for full-length and short tracks; the ONNX/TensorRT network alone gives wrong answers on raw values without any error.</div>
+            </div>
+
+            <div class="step" id="sq10"><h3><span class="n">S10</span>Explainability</h3>
+                <div class="formula"><span class="c">Run History → double-click a sequence run</span>
+Formulas           the exact computation of that model (window shape, scaling constants μ/σ, encoder layers, heads, thresholds)
+Feature influence  permutation: feature j's whole k-pulse sequence swapped between validation windows → accuracy drop
+                   gradient: mean | ∂ log p_y / ∂ x̃_ij | over windows and pulses
+Branch contribution (seq_hybrid): CNN or Transformer branch zeroed / replaced by its average → accuracy and AUROC re-measured
+Evaluation         window metrics, track accuracy, unknown tracks flagged, accuracy vs pulses observed, verdict split, ROC
+Thresholds         τ_c, τ_d and how τ_d was chosen
+
+<span class="c">Permutation importance of feature j (5 repeats)</span>
+Δacc_j = accuracy(validation) − accuracy(validation with feature j's sequence swapped between windows)
+<span class="c">Gradient sensitivity of feature j</span>
+g_j = mean over validation windows and pulses of | ∂ log p_y / ∂ x̃_ij |
+<span class="c">Hybrid branch contribution</span>
+zeroed:     f = ReLU( W_h · [0 ; f_tf] + b_h )        or  [f_cnn ; 0]
+averaged:   f = ReLU( W_h · [f̄_cnn ; f_tf] + b_h )    f̄ = branch output averaged over validation windows
+→ re-measure accuracy and AUROC (rest of the model and the prototypes unchanged)
+signal share_cnn = mean‖W_h[:, CNN half] · f_cnn‖ / ( mean‖…CNN…‖ + mean‖W_h[:, Transformer half] · f_tf‖ )</div>
+                <div class="why"><b>Why ΔPRI should rank high:</b> it's the feature that carries the PRI pattern. If the permutation importance of ΔPRI / Δfreq is near zero, the model is classifying from per-pulse values only and the sequence adds nothing for this dataset — a useful finding in itself. <b>Why measured, not read off:</b> a neural network has no single equation, so explainability is measured: permutation importance asks "how much worse is the model without this feature's information?", gradient sensitivity asks "how strongly does the output react to it?". For the Hybrid, switching a branch off shows whether the decision <i>depends</i> on it; replacing it by its average removes its window-specific information while keeping its typical level (a fairer test, since zeros are an input the fusion layer never saw in training). The Formulas view prints the exact computation of that trained model with its real dimensions, scaling constants and thresholds; all weights are downloadable.</div>
+            </div>
+
+            <div class="step" id="sq11"><h3><span class="n">S11</span>Adding a new family later: incremental training (Training page → Add New Families)</h3>
+                <p>A deployed model meets a family it was never trained on; the open-set check flags it as unknown. Once its tracks are labelled, the model can be taught the family in four ways. Each makes a <b>new</b> model (a child of the base, “← #base” in Run History); the base model is never changed.</p>
+                <div class="formula"><span class="c">classes:</span>  the base model's labels L₀ (by name) + the new family's label(s); the classifier head grows to |L| rows,
+          old rows keep their weights; a generated family that was held out keeps its RADAR_FAMILY id
+
+<span class="c">A  frozen encoder + weight imprinting</span>          new data only, no training
+   w_new = mean f(new windows) / ‖mean f‖ · mean‖w_old‖        b_new = mean b_old        (f = backbone feature vector)
+   prototypes: old ones unchanged + K-means of the new family's embeddings;   τ_c, τ_d: the base model's
+<span class="c">B  fine-tune with a replay buffer</span>              new tracks + R stored tracks per old family (from the base's training tracks)
+   E epochs from the base weights, learning rate × s;   loss = CE + triplet;   prototypes and τ_d recomputed
+<span class="c">C  fine-tune with distillation (LwF)</span>            new tracks only; the base model is the teacher
+   loss = CE + triplet + T² · KL( softmax(z_teacher,old / T) ‖ softmax(z_old / T) ) + mean(1 − cos(e, e_teacher)),  T = 2
+   prototypes of old families can only be kept from the base model (no old data to recompute them)
+<span class="c">D  full retrain</span>                                 all old training tracks + new tracks, from scratch (the reference)
+
+<span class="c">scored on the same held-out tracks for every method and for the base model:</span>
+   old families   the base model's validation tracks            → forgetting = drop in old-family track accuracy
+   new family     a share (default 30%) of its tracks, never trained on by any method
+   unknown        the new dataset's unknown tracks (remaining held-out families + noise)</div>
+                <div class="why"><b>Why not just train on the new data:</b> gradient steps on the new family alone pull every weight towards it and nothing reminds the network of the old families — their accuracy collapses (catastrophic forgetting). And when the encoder changes, the old prototypes no longer match the new embeddings, so τ_d and the nearest-prototype check break too. <b>What to expect:</b> A never touches old weights but its new classifier row competes with the old ones and its embedding was never trained for the new family; B is usually close to D at a fraction of the cost, if a small store of old tracks may be kept; C needs no old data but its old prototypes go stale, which hurts the distance check (AUROC, “verified known”); D is the most reliable and the most expensive. Simulated new-family data: Training page → Simulate new-family data (the base model's own held-out families, freshly generated, labelled). Every comparison is stored (data/incremental_experiments/) and listed under Earlier comparisons.</div>
+            </div>
+        </div>
+
+        <div class="glossary-section" id="glossary">
+            <h2>Acronym Quick Reference</h2>
+            <div class="hint" style="margin-bottom:10px;">Every abbreviation used anywhere on this platform, in one place. Each is also defined in context in the sections below.</div>
+            <table class="eda-table">
+                <thead><tr><th>Acronym</th><th style="text-align:left;">Full Form</th></tr></thead>
+                <tbody>
+                    <tr><td>LwF</td><td style="text-align:left;">Learning without Forgetting — incremental training with the old model as a teacher (method C).</td></tr>
+                    <tr><td>KL</td><td style="text-align:left;">Kullback–Leibler divergence — how far one probability distribution is from another; the distillation loss on the old-class probabilities.</td></tr>
+                    <tr><td>EW</td><td style="text-align:left;">Electronic Warfare</td></tr>
+                    <tr><td>ESM</td><td style="text-align:left;">Electronic Support Measures — the passive-intercept discipline this whole platform simulates.</td></tr>
+                    <tr><td>ELINT</td><td style="text-align:left;">Electronic Intelligence — intelligence gathered from intercepted non-communication signals (e.g. radar)</td></tr>
+                    <tr><td>ECM</td><td style="text-align:left;">Electronic Countermeasures — active response actions taken against a detected threat</td></tr>
+                    <tr><td>PDW</td><td style="text-align:left;">Pulse Descriptor Word — the per-pulse measurement record (frequency, width, timing, power, etc.)</td></tr>
+                    <tr><td>ToA</td><td style="text-align:left;">Time of Arrival</td></tr>
+                    <tr><td>PRI</td><td style="text-align:left;">Pulse Repetition Interval</td></tr>
+                    <tr><td>PRF</td><td style="text-align:left;">Pulse Repetition Frequency (= 1 / PRI)</td></tr>
+                    <tr><td>PW</td><td style="text-align:left;">Pulse Width</td></tr>
+                    <tr><td>fc</td><td style="text-align:left;">Carrier frequency (symbol, not an acronym)</td></tr>
+                    <tr><td>OOD</td><td style="text-align:left;">Out-of-Distribution — data unlike anything the model was trained on</td></tr>
+                    <tr><td>ROC</td><td style="text-align:left;">Receiver Operating Characteristic (curve)</td></tr>
+                    <tr><td>AUROC</td><td style="text-align:left;">Area Under the ROC Curve</td></tr>
+                    <tr><td>RPL</td><td style="text-align:left;">Reciprocal Points Learning</td></tr>
+                    <tr><td>ARPL</td><td style="text-align:left;">Adversarial Reciprocal Points Learning</td></tr>
+                    <tr><td>PCA</td><td style="text-align:left;">Principal Component Analysis</td></tr>
+                    <tr><td>CNN</td><td style="text-align:left;">Convolutional Neural Network</td></tr>
+                    <tr><td>GRU</td><td style="text-align:left;">Gated Recurrent Unit — the recurrent sequence-model baseline</td></tr>
+                    <tr><td>PGRI</td><td style="text-align:left;">Pulse Group Repetition Interval — a PRI pattern of pulse groups</td></tr>
+                    <tr><td>Δ (delta)</td><td style="text-align:left;">Change from the previous pulse of the same track (ΔPRI, Δfreq, ΔPW)</td></tr>
+                    <tr><td>k</td><td style="text-align:left;">Window length — number of consecutive pulses a sequence model looks at</td></tr>
+                    <tr><td>τ_c / τ_d</td><td style="text-align:left;">Confidence / distance thresholds of the decision rule</td></tr>
+                    <tr><td>ReLU</td><td style="text-align:left;">Rectified Linear Unit — the activation max(0, z)</td></tr>
+                    <tr><td>LN</td><td style="text-align:left;">Layer Normalization (inside the Transformer)</td></tr>
+                    <tr><td>FFN</td><td style="text-align:left;">Feed-Forward Network (the per-token MLP inside each Transformer layer)</td></tr>
+                    <tr><td>CE</td><td style="text-align:left;">Cross-Entropy (loss)</td></tr>
+                    <tr><td>TP / FP / FN</td><td style="text-align:left;">True Positive / False Positive / False Negative</td></tr>
+                    <tr><td>TPR / FPR</td><td style="text-align:left;">True / False Positive Rate (the ROC curve's axes)</td></tr>
+                    <tr><td>F1</td><td style="text-align:left;">Harmonic mean of precision and recall</td></tr>
+                    <tr><td>MI</td><td style="text-align:left;">Mutual Information</td></tr>
+                    <tr><td>ANOVA</td><td style="text-align:left;">Analysis of Variance</td></tr>
+                    <tr><td>KS</td><td style="text-align:left;">Kolmogorov–Smirnov (distribution-difference statistic)</td></tr>
+                    <tr><td>MLP</td><td style="text-align:left;">Multi-Layer Perceptron</td></tr>
+                    <tr><td>ONNX</td><td style="text-align:left;">Open Neural Network Exchange — a portable trained-model file format</td></tr>
+                    <tr><td>TorchScript</td><td style="text-align:left;">PyTorch's serialized model format, runnable without the model's Python source</td></tr>
+                    <tr><td>TensorRT</td><td style="text-align:left;">NVIDIA's optimizing inference engine for its GPUs</td></tr>
+                    <tr><td>CUDA</td><td style="text-align:left;">NVIDIA's GPU computing platform</td></tr>
+                    <tr><td>GPU / CPU</td><td style="text-align:left;">Graphics / Central Processing Unit</td></tr>
+                    <tr><td>ISA-101</td><td style="text-align:left;">International Society of Automation's Human-Machine Interface design standard (display hierarchy: overview first, diagnostic detail second)</td></tr>
+                    <tr><td>AN/SLQ-32</td><td style="text-align:left;">A U.S. Navy shipboard EW system; not an acronym (AN/ is the Army-Navy joint electronic equipment designation prefix) — its operator-console human-factors research informed this platform's Live Simulation layout</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="glossary-section">
+            <h2>PDW (Pulse Descriptor Word) Fields</h2>
+            <div class="glossary-term">Carrier Frequency (fc)</div>
+            <div class="glossary-def">The radio frequency the pulse was transmitted on, in MHz everywhere (track files: Frequency; Analytics, charts and the Dataset page too). Used for spectral band mapping and detecting frequency-agile emitters.</div>
+            <div class="glossary-term">Pulse Width (PW)</div>
+            <div class="glossary-def">How long a single pulse lasts, in microseconds (µs). Helps isolate the emitter's modulation mode.</div>
+            <div class="glossary-term">PRI (Pulse Repetition Interval, ΔToA)</div>
+            <div class="glossary-def">Time between consecutive pulses from the same emitter, in microseconds. Reveals the emitter's timing pattern — see PRI Modulation Patterns below.</div>
+            <div class="glossary-term">PRF (Pulse Repetition Frequency)</div>
+            <div class="glossary-def">The reciprocal of PRI (PRF = 1 / PRI), in Hz — how many pulses per second the emitter transmits. Shown on the Analytics page as an alternative view of the same timing information PRI carries.</div>
+            <div class="glossary-term">Time of Arrival (ToA)</div>
+            <div class="glossary-def">Precise timestamp the pulse was received, in nanoseconds. PRI is the delta between consecutive ToAs from the same emitter. Not a model input — an absolute timestamp says nothing about which emitter sent a pulse.</div>
+            <div class="glossary-term">Fall Time</div>
+            <div class="glossary-def">How quickly the pulse decays from full amplitude, in nanoseconds — like rise time, a transmitter hardware fingerprint. <b>A selectable model input.</b></div>
+            <div class="glossary-term">Bandwidth</div>
+            <div class="glossary-def">Instantaneous signal bandwidth of the pulse, in Hz in track data (timeBW; the model sees it scaled to MHz) — wide for pulse-compressed or chirped waveforms (better range resolution), narrow for simple unmodulated pulses. <b>A selectable model input.</b></div>
+            <div class="glossary-term">PW × PRI</div>
+            <div class="glossary-def">Derived: Pulse Width × PRI, in µs². A PW–PRI interaction term complementary to Duty Cycle (PW / PRI), computed on the fly from the Pulse Width and PRI already provided — no separate input needed. <b>A selectable model input</b>, also shown on the Analytics page.</div>
+            <div class="glossary-term">Rise Time</div>
+            <div class="glossary-def">How quickly the pulse reaches full amplitude, in nanoseconds — a subtle transmitter hardware fingerprint.</div>
+            <div class="glossary-term">Duty Cycle</div>
+            <div class="glossary-def">Fraction of time the emitter is actually transmitting: Pulse Width / PRI. Low duty cycle (search radars, long PRI) vs. high duty cycle (illumination/track radars, short PRI) is itself a strong Operating Mode signal. <b>A selectable model input</b> — computed on the fly from the Pulse Width and PRI already provided, since it's a genuine PW×PRI interaction a single linear classifier layer can't otherwise construct on its own. Also shown on the Analytics page as a percentage.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Radar Frequency Bands</h2>
+            <div class="hint" style="margin-bottom:10px;">Standard IEEE radar band letter designations, used throughout the platform (prototype metadata, Analytics' band breakdown, this help page's own examples).</div>
+            <table class="eda-table">
+                <thead><tr><th>Band</th><th style="text-align:left;">Frequency Range</th></tr></thead>
+                <tbody>
+                    <tr><td>L-BAND</td><td style="text-align:left;">&lt; 2,000 MHz</td></tr>
+                    <tr><td>S-BAND</td><td style="text-align:left;">2,000 – 4,000 MHz</td></tr>
+                    <tr><td>C-BAND</td><td style="text-align:left;">4,000 – 8,000 MHz</td></tr>
+                    <tr><td>X-BAND</td><td style="text-align:left;">8,000 – 12,000 MHz</td></tr>
+                    <tr><td>KU-BAND</td><td style="text-align:left;">12,000 – 18,000 MHz</td></tr>
+                    <tr><td>K-BAND</td><td style="text-align:left;">18,000 – 27,000 MHz</td></tr>
+                    <tr><td>KA-BAND</td><td style="text-align:left;">&ge; 27,000 MHz</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="glossary-section">
+            <h2>PRI Modulation Patterns</h2>
+            <div class="hint" style="margin-bottom:10px;">The six standard radar PRI modulation types from ESM / PRI-recognition literature, plus PGRI (pulse groups) — what PRI modulation recognition research actually discriminates between. Every simulated emitter class is assigned one of these.</div>
+            <div class="glossary-term">Constant</div>
+            <div class="glossary-def">PRI stays fixed at a single value, pulse after pulse — the simplest pattern.</div>
+            <div class="glossary-term">Jittered</div>
+            <div class="glossary-def">PRI varies randomly (small Gaussian noise) around a fixed mean, pulse to pulse — used to resist certain jamming/deception techniques.</div>
+            <div class="glossary-term">Staggered</div>
+            <div class="glossary-def">PRI cycles through a small number of fixed, discrete values in a fixed repeating order (e.g. A-B-C-A-B-C...) — used to resolve range/velocity ambiguities.</div>
+            <div class="glossary-term">Sliding</div>
+            <div class="glossary-def">PRI ramps continuously up and down between a minimum and maximum over time (a triangular sweep), rather than jumping between discrete values.</div>
+            <div class="glossary-term">Wobulated</div>
+            <div class="glossary-def">PRI oscillates smoothly (sinusoidally) between a minimum and maximum — similar intent to sliding, different waveform shape.</div>
+            <div class="glossary-term">PGRI (Pulse Group Repetition Interval)</div>
+            <div class="glossary-def">The emitter transmits <b>groups</b> of pulses: a few (here 2–8) at a short intra-group PRI, then a long gap; the groups repeat every PGRI. In a track the PRI sequence reads short, short, …, LONG, short, short, …, LONG — a strong periodic spike in ΔPRI. As independent pulses it is a two-level PRI distribution (mostly short, 1 in group-size long). Optional when generating a dataset ("Include PGRI", on by default); about 1 in 7 families are picked for it, and each group shape is fitted to the family's pulse width so pulses inside a group never overlap (PW ≤ 50% of the intra-group PRI in every operating mode); a family whose pulses are too wide for any group keeps its own pattern. Datasets and models from before it existed regenerate without it, exactly as before.</div>
+            <div class="glossary-term">Dwell-and-Switch</div>
+            <div class="glossary-def">PRI holds at one fixed value for a long block of pulses, then jumps to a different fixed value for the next block, and so on — distinct from staggered, which switches every pulse rather than dwelling.</div>
+            <div class="glossary-def" style="margin-top:8px;">Treated as independent pulses, only the <i>steady-state distribution shape</i> of each pattern is visible — staggered and dwell-and-switch are statistically indistinguishable without temporal order. The <b>Sequence Dataset</b> generates the real time order (stagger cycle, ramp, sine, dwell blocks, pulse groups — <a href="#sq2" style="color:var(--accent-blue);">S2</a>), which is what the sequence models learn from. Each row's pri_deviation_pct shows the pattern's contribution; Analytics → PRI Pattern Check verifies every family against its label.</div>
+            <div class="glossary-term">Frequency Agility (sequence data)</div>
+            <div class="glossary-def">How a family's carrier frequency changes from pulse to pulse in a track: <b>fixed</b>, <b>hopping</b> (a random channel every pulse), <b>stepped</b> (a repeating staircase of 3–5 steps) or <b>burst</b> (a new channel every 8–32 pulses). Recorded in the freq_agility column; visible to the sequence model through Δfrequency.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Operating Modes</h2>
+            <div class="glossary-def" style="margin-top:0;">Real multifunction radars don't emit with fixed parameters — they switch between modes that change frequency, pulse width, and PRI <i>together</i>, generally escalating as a target is acquired and tracked (the "war mode" search → lock-on progression), though an emitter can also lose lock and de-escalate.</div>
+            <div class="glossary-term">Search</div>
+            <div class="glossary-def">Wide-area scanning for any target. Longest PRI, widest pulse width, slightly lower frequency, lowest duty cycle — optimized for range/coverage over precision.</div>
+            <div class="glossary-term">Acquisition</div>
+            <div class="glossary-def">A candidate target has been detected; the radar narrows its focus to confirm and localize it. Baseline (1.0×) frequency/PRI/pulse-width multipliers — the reference mode the other three are defined relative to.</div>
+            <div class="glossary-term">Track</div>
+            <div class="glossary-def">Continuously following a confirmed target. Shorter PRI, narrower pulse width, slightly higher frequency, higher duty cycle than acquisition — trades coverage for update-rate precision.</div>
+            <div class="glossary-term">Illumination</div>
+            <div class="glossary-def">Highest-fidelity lock-on, typically immediately preceding weapon guidance or engagement. Shortest PRI, narrowest pulse width, highest frequency and duty cycle of the four modes — the most operationally significant mode to detect promptly.</div>
+            <div class="glossary-term">Mode Diversity vs. Mode Persistence</div>
+            <div class="glossary-def">In the Sequence Dataset and in Live Simulation each emitter has <i>persistent state</i>: it dwells in one mode for a block of consecutive pulses (15–60 pulses) before a biased random transition (50% escalate, 30% de-escalate, 20% jump) decides the next mode — so the escalation is something you can actually watch unfold over a track, not just a diversity statistic.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Dataset Generation Pipelines</h2>
+            <div class="hint" style="margin-bottom:10px;">The Dataset page holds the datasets (tracks) the sequence models train on and are tested on.</div>
+            <div class="glossary-term">Sequence Dataset (Sequence Pipeline)</div>
+            <div class="glossary-def">Tracks: ordered pulses of one emitter each, as a de-interleaver delivers them — used to train and test the sequence models. Settings: name, classes, held-out classes, tracks per class, pulses per track, missed / spurious pulse rates, noise tracks %, Include PGRI. Every dataset is kept under its name and listed on the Dataset page (view, make default, download, delete); Training, Testing and Analytics choose from that list, and each trained model remembers its dataset. The PRI types are handed out round-robin to the families (known ones first), so with six or more families every type appears. Bandwidth is in Hz. Generated (<a href="#sq2" style="color:var(--accent-blue);">S2</a>) or uploaded (<a href="#sq1" style="color:var(--accent-blue);">S1</a>).</div>
+            <div class="glossary-term">Duty Cycle Range (population setting)</div>
+            <div class="glossary-def">Dataset page → Advanced: Population Ranges. Each family's pulse width is set from its duty cycle: PW = duty × PRI, the duty cycle drawn log-uniformly from this range (default 0.1–10%, typical of pulsed radars; search radars sit at the low end, track/pulse-Doppler radars at the high end). This guarantees a pulse is never longer than the interval between pulses — drawing PW and PRI independently used to produce impossible families (duty cycle above 100%). Pulse Width Min/Max still limit the result; if both can't hold for a family's PRI, the duty-cycle range wins. Operating modes and PRI patterns then raise a family's duty cycle by at most about 2× (illumination shortens PRI more than PW), so pulses stay below ~20% duty, and PGRI pulses inside a group below ~50%. Recorded with each dataset and model, so Testing's auto-generated tracks use the same range.</div>
+            <div class="glossary-term">Datasets — names, default, deleting</div>
+            <div class="glossary-def">Every dataset (generated; uploaded for training; uploaded on the Testing page) is kept under its name and listed in <b>All Datasets</b> on the Dataset page: view it, make it the <b>default</b> (what the Training page offers first), download it as CSV or delete it. <b>Training</b> and <b>Testing</b> each have a dataset dropdown, <b>Analytics</b> lists every dataset plus the dataset behind each kept model, and each trained model records its <b>dataset name</b> (Run History, run details, model selectors, Test History), so the dataset in force is always visible. Deleting a dataset does not touch models trained on it; Analytics rebuilds a generated model's dataset from its seed (exact), but cannot for a deleted upload. Models from before names existed show “unnamed (seed …)”. <b>A name always means the same data.</b> Each dataset keeps a <b>SHA-256 fingerprint</b> of its file: the first 8 characters are shown next to the name in All Datasets, and hovering shows all of it. Every training and test run records the fingerprint of the data it used. A deleted dataset's name is retired and never given to another dataset, so a model can't silently point at different data. If a model's dataset file has been changed outside DADS, Testing on its test split, example tracks, Analytics and incremental training refuse it with a message instead of using different data.</div>
+            <div class="glossary-term">PRI types handed out round-robin</div>
+            <div class="glossary-def">New datasets give the families the six PRI types in turn (known families first, then held-out ones; PGRI families keep theirs) instead of drawing each at random, so with six or more families every type — staggered included — is present. Older datasets and models used random draws and regenerate exactly as before (recorded as <code>balanced_patterns</code>).</div>
+            <div class="glossary-term">Modlntype, Modlnval, snr</div>
+            <div class="glossary-def">New columns of the pulse data: <b>Modlntype</b> is the intra-pulse modulation of the family (None, LFM, NLFM, Barker, BPSK, Frank), <b>Modlnval</b> its parameter (chirp rate in MHz/µs for LFM/NLFM, code length for the phase codes, 0 for none) and <b>snr</b> the signal-to-noise ratio in dB of the capture (a condition of the capture, not of the emitter - a model that leans on it is suspicious). As model inputs they are the features Modulation Type (text, fed as the position in the modulation list), Modulation Value and SNR.</div>
+            <div class="glossary-term">Extra features (your own columns)</div>
+            <div class="glossary-def">Dataset page → Generate → Extra features: add a column to every generated pulse - <b>numeric</b> (each family gets its own value in [min, max], pulses scatter by a noise %) or <b>categorical</b> (each family gets one of your values). It is stored in the dataset, offered on the Training page as a feature (<code>col:</code> value, <code>dcol:</code> change per pulse, <code>cat:</code> category - fed as a stable number per category), and reproduced for the Testing page's fresh tracks, Inference examples and Live Simulation, so the same feature is used in training and testing.</div>
+            <div class="glossary-term">Grow a small dataset into a large one</div>
+            <div class="glossary-def">Dataset page → "Grow a Small Dataset into a Large One". Every class is topped up to the track count you give: a new track starts from one of the class's own tracks at a random point of its pulse pattern and, when the class has several tracks, differs by the spread those tracks show (each measurement scaled - SNR shifted - by a random amount within ±2 standard deviations of the between-track variation). No noise is added; the source dataset is unchanged. A class with a single track varies only in where its pattern starts, so one example per class gives a large but not very diverse dataset.</div>
+            <div class="glossary-term">Test split, folds, cross-validation</div>
+            <div class="glossary-def">Training page → Data Split &amp; Cross-validation: <b>Test split %</b> of every class's tracks is held out; the rest is cut into <b>Folds</b> buckets and each fold validates on one and trains on the others (see S5). The run history shows the kept model's accuracy with the fold mean ± std; the run details list every fold. <b>Also train on the test split</b> moves the test tracks into every fold's training pool (for a final model) - the Testing page then flags that split as not independent. Training takes about as many times longer as there are folds.</div>
+            <div class="glossary-term">Units: frequency in MHz, bandwidth in Hz</div>
+            <div class="glossary-def">Track files carry <code>Frequency</code> (MHz) and <code>timeBW</code> (Hz); the Dataset page's frequency range is entered in MHz and its bandwidth range in Hz. Files with the older <code>carrier_freq_hz</code> column are converted on upload and on load, and the model still receives frequency in Hz, so earlier models behave identically. Likewise, files with the older <code>bandwidth_mhz</code> column are converted on upload and on load; the model itself still receives the value scaled to MHz, so models trained before the change behave identically.</div>
+            <div class="glossary-term">Include PGRI</div>
+            <div class="glossary-def">On by default for new datasets. About 1 in 7 families use the PGRI pattern (a family whose pulses are too wide for a pulse group would keep its own pattern — rare with the default duty-cycle range). Recorded with the dataset and every model trained on it, so auto-generated test data reproduces the same population; datasets and models from before it existed regenerate exactly as before.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Model & Hyperparameters</h2>
+            <div class="glossary-term">Dataset Feature (new feature from real data)</div>
+            <div class="glossary-def">Any extra numeric column in an uploaded track file (e.g. <code>aoa_deg</code>) automatically appears under the Sequence Model card's Per-pulse Input Features, tagged <i>from dataset</i> — as its value per pulse and as its change from the previous pulse (Δ). Train, test and run Inference with it like any built-in feature. The track simulator can't produce it, so Live Simulation, example tracks and Testing's fresh tracks are unavailable for a model that uses it — use track files that include the column (<a href="#sq3" style="color:var(--accent-blue);">S3</a>).</div>
+            <div class="glossary-term">Neural Model Backbone</div>
+            <div class="glossary-def">The shared feature extractor before the two output heads. The sequence models have four temporal backbones that run along the pulses of a window: Temporal Hybrid (default; CNN and Transformer in parallel, fused by a learned layer), Temporal 1D-CNN, Temporal Transformer and Bidirectional GRU. Formulas and the reasoning: <a href="#sq4" style="color:var(--accent-blue);">S4</a>.</div>
+            <div class="glossary-term">Sequence Model card (Training page)</div>
+            <div class="glossary-def"><b>Sequence Backbone</b> (S4). <b>Window k</b>: pulses per window (default 32, 2–512). <b>Epochs</b>. <b>Sequence features</b>: any of PRI, ΔPRI, frequency, Δfrequency, PW, ΔPW, bandwidth, rise, fall, duty cycle, PW × PRI, plus dataset columns of an uploaded track file (S3). <b>Min classifier confidence τ_c</b> (blank = the form's value). <b>Distance threshold τ_d</b>: Auto (calibrated so "Known windows accepted" % of held-out known windows pass, default 95%) or Manual (S6). Uses the form's Hyperparameters, Distance Metric and RPL settings.</div>
+            <div class="glossary-term">Training Dataset (Training page)</div>
+            <div class="glossary-def">Which stored dataset the next sequence model learns from (default: the dataset marked “default” on the Dataset page). The feature list shows which columns that dataset offers. The run records the dataset's name.</div>
+            <div class="glossary-term">Embedding Size (d)</div>
+            <div class="glossary-def">How many numbers describe each sequence window: the size of the encoder's feature vector f and of the stored embedding (one vector per window). Options 8–256, default 128, set in the Sequence Model card and recorded per run. Measured on simulated data: accuracy falls below d = 64 (56% at d = 8), 128 was the smallest size at 100%, 256 gains nothing. Memory: weights change only slightly (0.68–1.34 MB for the Temporal Hybrid), a stored vector is 4·d bytes. Details: <a href="#emb" style="color:var(--accent-blue);">Embedding size &amp; memory</a>.</div>
+            <div class="glossary-term">Embedding Distance Metric (Distance Metric)</div>
+            <div class="glossary-def">How far apart two embedding vectors are, used in exactly two places — the triplet loss while training and the distance to the nearest class prototype checked against τ_d afterwards. It is plain arithmetic on the model's output vectors: Cosine (angle between vectors) or Euclidean (straight-line distance). Embeddings and prototypes all have length 1, so the two pick the same nearest prototype and differ only in distance scale — set the OOD Distance Threshold for the metric you use. See <a href="#s10" style="color:var(--accent-blue);">F4</a>.</div>
+            <div class="glossary-term">Learning Rate</div>
+            <div class="glossary-def">Step size for the Adam optimizer during training. Too high can destabilize training; too low makes it slow to converge.</div>
+            <div class="glossary-term">Triplet Margin (α)</div>
+            <div class="glossary-def">Minimum gap the triplet loss enforces between "same-class" and "different-class" embedding distances. Larger margins push classes further apart in embedding space, but can make the loss harder to satisfy.</div>
+            <div class="glossary-term">Min Classifier Confidence</div>
+            <div class="glossary-def">Softmax confidence threshold. Below this, a window is treated as low-confidence regardless of the prototype distance, and rejected as OOD (Out-of-Distribution) noise.</div>
+            <div class="glossary-term">OOD Distance Threshold</div>
+            <div class="glossary-def">Prototype distance threshold. Above this, the nearest known prototype is considered too far away to trust — the window is flagged as anomalous rather than a confident match. Sequence models calibrate their own (S6).</div>
+            <div class="glossary-term">RPL Loss Weight</div>
+            <div class="glossary-def">How strongly the auxiliary Reciprocal Points Learning (RPL) objective shapes the shared embedding space during training, relative to the primary classifier + triplet losses (default 0.1, deliberately modest so RPL can't destabilize the proven primary training).</div>
+            <div class="glossary-term">Enable Adversarial Training (ARPL)</div>
+            <div class="glossary-def">Upgrades RPL to the full ARPL (Adversarial Reciprocal Points Learning) mechanism: a generator network adversarially synthesizes "confusing" embeddings targeting each known class, and the classifier is trained (in a min-max game) to keep rejecting them as open-space even as the generator tries to make them pass as genuine. Tightens the decision boundary beyond RPL's passive open-space margin loss, at the cost of a less stable, sometimes slower-converging run. Off by default — toggle it and retrain to get a genuine RPL-vs-ARPL comparison across two separate runs (both show up in Run History, each labeled with which mode produced its AUROC number).</div>
+            <div class="glossary-term">Dataset Seed</div>
+            <div class="glossary-def">Controls both which radar-family archetypes (frequency/pulse-width/PRI/rise-time) get generated and which classes are randomly held out — a fresh seed is drawn every time a dataset is generated for genuine diversity. Testing's auto-generate mode reuses the exact seed, ranges, noise level and PGRI setting of the <b>model being tested</b>, so it evaluates the same population that model was trained on — new tracks, same families.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Saved Models &amp; Explainability</h2>
+            <div class="glossary-term">Saved Model</div>
+            <div class="glossary-def">Every training run keeps its trained model (weights, input features and scaling, class prototypes, evaluation report). Give a run a name (Training → Run History → double-click a run → ★ Save Model) to keep it permanently; it shows as ★ name in Run History. Unsaved runs are kept for the 20 most recent, then pruned; saved and in-use models never are. 🗑 Delete in Run History (or a run's details) permanently removes a run, its model and that model's Testing results; deleting the model in use clears that choice.</div>
+            <div class="glossary-term">Sequence Model in Use</div>
+            <div class="glossary-def">The model that serves Inference and Live Simulation (● in Run History). Choose it with the model selector on those pages or "Use for Inference / Live Simulation" in a run's details; it stays in use after a server restart. The Testing page lets you test any kept model, whichever is in use.</div>
+            <div class="glossary-term">Model Package Download</div>
+            <div class="glossary-def">A .zip to deploy a model elsewhere, no DADS code needed: <code>sequence_inference.py</code> (per-track features, scaling, windows, network, nearest-prototype distance, decision rule and the per-track vote — giving the same results as the Inference page; backends: ONNX Runtime with TensorRT/CUDA/CPU, PyTorch TorchScript on CUDA/CPU, or a TensorRT engine), <code>model.onnx</code> (dynamic batch × pulses inputs), <code>model.torchscript.pt</code>, <code>model.pt</code> (DADS checkpoint), <code>prototypes.json</code>, <code>model_card.json</code> (features and how to compute them, scaling constants, thresholds, metrics) and <code>report.json</code>. The README includes the exact <code>trtexec</code> command to build a TensorRT engine. Note: model.onnx / a TensorRT engine contain only the network — features must be computed per track and scaled exactly as sequence_inference.py does (<a href="#sq9" style="color:var(--accent-blue);">S9</a>). "All Weights (JSON)" downloads every individual weight value.</div>
+            <div class="glossary-term">Run Details — Formulas</div>
+            <div class="glossary-def">The exact layer-by-layer computation of that trained model, generated from its real architecture: the window shape and input scaling (x̃ = (x − μ)/σ, with the fitted μ, σ and the Δ log scales), the temporal encoder, the classifier softmax, the normalized embedding, the prototype distance, and the decision rule with its thresholds. A neural network has no single closed-form equation; this chain is its true "formula".</div>
+            <div class="glossary-term">Weights by Layer / First-Layer Weights</div>
+            <div class="glossary-def">Statistics (shape, count, mean, std, min, max, L2 norm) of every learned weight matrix, plus the first layer's weights — the only weights that touch the inputs directly.</div>
+            <div class="glossary-term">Feature Influence</div>
+            <div class="glossary-def"><b>Permutation importance</b>: validation accuracy lost when one feature's values are shuffled across windows, breaking its link to the class — how much the trained model actually relies on that feature. <b>Gradient sensitivity</b>: how strongly the true-class output reacts to a small change in that (scaled) input. Unlike the Analytics feature ranking (which measures the data), these measure the trained model.</div>
+            <div class="glossary-term">Hybrid Branch Contribution</div>
+            <div class="glossary-def">Temporal Hybrid models only: the 1D-CNN's or the Transformer's 64 output numbers are set to 0 (branch switched off) or to their average over the validation windows (window-specific information removed), and accuracy and AUROC are re-measured with everything else unchanged. Also shows each branch's share of the signal entering the fusion layer, and how many of its 64 outputs are typically active. Formulas: <a href="#sq10" style="color:var(--accent-blue);">S10</a>.</div>
+            <div class="glossary-term">Confusion Matrix / Per-Class F1 / ROC</div>
+            <div class="glossary-def">Recorded for every run on its validation rows: which classes are confused with which, precision/recall/F1 per class (and macro F1), the open-set ROC curve behind the AUROC number, and how the fusion rule's verdicts split for known vs. unknown rows at the configured thresholds.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Adding New Families (Incremental Training)</h2>
+            <div class="hint" style="margin-bottom:10px;">Training page → Add New Families. Method formulas: <a href="#sq11" style="color:var(--accent-blue);">S11</a>.</div>
+            <div class="glossary-term">Base model / child model</div>
+            <div class="glossary-def">The base is the trained model that meets a new family; each method makes a new <b>child</b> model from it (“← #base (method)” in Run History). The base is never modified, so you can always go back.</div>
+            <div class="glossary-term">Catastrophic forgetting</div>
+            <div class="glossary-def">Training a network on the new family alone pulls all weights towards it; accuracy on the old families collapses because nothing reminds the network of them. Every method here is a different way of avoiding it. Measured as the drop in old-family track accuracy against the base model.</div>
+            <div class="glossary-term">Replay buffer (method B)</div>
+            <div class="glossary-def">A few stored tracks of every old family (default 10 per family), mixed with the new tracks while fine-tuning, so the old families keep being rehearsed. It also lets the old prototypes and τ_d be recomputed with the updated encoder. The buffer is a small subset of the base model's own training tracks.</div>
+            <div class="glossary-term">Weight imprinting (method A)</div>
+            <div class="glossary-def">Adds the new family without training: its classifier row is set to the average encoder feature vector of its tracks (scaled like the existing rows) and its prototypes are added. Fast and cannot disturb old weights or prototypes — but the new row competes with the old ones for every window, and the encoder was never trained to separate the new family, so old families are usually hurt.</div>
+            <div class="glossary-term">Distillation / LwF (method C)</div>
+            <div class="glossary-def">Learning without Forgetting: no old data; the base model acts as a teacher and the new model is trained to keep its softened class probabilities over the old families (KL divergence, temperature T = 2) and its embeddings (1 − cosine). Old families' prototypes can only be kept from the base model, so they go stale as the encoder shifts — which mostly shows up in the distance check (AUROC, “verified known”).</div>
+            <div class="glossary-term">Full retrain (method D)</div>
+            <div class="glossary-def">All old training tracks plus the new tracks, from scratch. The reference: most reliable, most expensive, needs the old data to be kept.</div>
+            <div class="glossary-term">Comparison table</div>
+            <div class="glossary-def">Base model and each method scored on the same held-out tracks: <b>old families</b> (the base model's validation tracks), <b>new family</b> (30% of its tracks kept aside, never trained on), <b>unknown tracks</b> (remaining held-out families and noise). Columns: track accuracy on old (with change versus base) and new; windows <i>verified known</i> (passing τ_c and τ_d) for old and new; unknown tracks flagged; open-set AUROC; time; data used. Comparisons are saved and listed under Earlier comparisons.</div>
+            <div class="glossary-term">Simulate new-family data</div>
+            <div class="glossary-def">For studies without real intercepts: fresh tracks of families the base model was trained <i>without</i> (its held-out families, same simulated population), labelled by their names, plus the remaining held-out families and noise as unknown tracks. Needs a base model trained on a generated dataset. With real data, upload the new family's labelled tracks on the Dataset page; families are matched by <code>true_label</code> name.</div>
+            <div class="glossary-term">When to use which</div>
+            <div class="glossary-def">Old data can be kept → <b>B</b> (usually near D at a fraction of the cost); no old data kept → <b>C</b>, expect weaker prototypes; almost no new data or an instant stopgap → <b>A</b>, then B once more tracks arrive; many families added over time, or results degrading → <b>D</b>. Always check the comparison — old families no worse, the new family above target, unknown rejection kept — before putting a child model in use.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Training & Validation Metrics</h2>
+            <div class="glossary-term">Closed-Set Accuracy</div>
+            <div class="glossary-def">Fraction of windows from known (trained-on) classes that the classifier head predicted correctly.</div>
+            <div class="glossary-term">Open-Set AUROC (Threshold)</div>
+            <div class="glossary-def">AUROC (Area Under the ROC — Receiver Operating Characteristic — Curve) for using embedding-distance-to-nearest-centroid as an anomaly score, evaluated on classes held entirely out of training. 1.0 = perfect separation of known vs. unknown; 0.5 = no better than random guessing. This is the method the Fusion Verdict logic actually uses (compared against the OOD Distance Threshold). Each class contributes up to 3 centroids (via K-means clustering over that class's embeddings), not one mean — a class whose true population spans multiple Operating Modes can have sub-clusters far enough apart that a single mean would land in the empty space between them, making genuine same-class samples look falsely anomalous. "Distance to nearest known" now means nearest of all sub-centroids across all classes, not nearest single mean per class.</div>
+            <div class="glossary-term">Open-Set AUROC (Reciprocal Points)</div>
+            <div class="glossary-def">A second, independently-trained open-set method — RPL (Reciprocal Points Learning) — scored the same way (AUROC) on the exact same train/val/holdout split, so the two numbers are directly comparable. Instead of representing each class by what it IS (a centroid), RPL learns a "reciprocal point" per class representing what it ISN'T, plus a learned per-class radius bounding how far a genuine sample of that class may drift from its own reciprocal point. Farther-than-radius = flagged unknown. This gives each class a finite, bounded acceptance region instead of softmax's open-ended one — the mechanism behind the ARPL (Adversarial Reciprocal Points Learning) line of current open-set radar literature. Trained jointly with the main model as an auxiliary objective (a small fixed loss weight, so it doesn't destabilize the primary training) — it does not replace the threshold method, both are reported from the same run.</div>
+            <div class="glossary-term">Holdout Classes</div>
+            <div class="glossary-def">Radar classes deliberately excluded from training so open-set detection can be measured honestly — the model has genuinely never seen them, unlike ordinary noise.</div>
+            <div class="glossary-term">Noise Percentage (Unstructured OOD)</div>
+            <div class="glossary-def">Fraction of unstructured, agile OOD (Out-of-Distribution) pulses (no coherent class structure at all — not just "a radar type we didn't train on") mixed into the open-set evaluation pool alongside the holdout classes (as whole noise tracks in the Sequence Dataset). Real intercepted environments contain both novel-but-structured emitter types and outright junk/noise signals, so a thorough open-set evaluation should include both. Set on the Dataset page as <b>Noise Tracks (%)</b>; Testing's auto-generate mode reuses the exact percentage the model was trained against, same as it reuses the dataset seed and ranges.</div>
+            <div class="glossary-term">Track Accuracy / Unknown Tracks Flagged (sequence)</div>
+            <div class="glossary-def">Sequence models are also scored per <b>track</b>: track accuracy = share of known tracks whose majority vote over windows is the right class; unknown tracks flagged = share of unknown tracks (held-out families + noise) with more than half their windows not verified as known. Closed-set accuracy and AUROC of a sequence run are per <b>window</b>. Formulas: <a href="#sq7" style="color:var(--accent-blue);">S7</a>.</div>
+            <div class="glossary-term">Accuracy vs Pulses Observed (sequence)</div>
+            <div class="glossary-def">The same trained model scored on the first 2, 4, 8, … 128 pulses of each track: how many pulses of an emitter must be intercepted before it is identified (no decision is possible from 1 pulse — there is no PRI yet).</div>
+            <div class="glossary-term">Training Loss</div>
+            <div class="glossary-def">Cross-entropy (classifier head) + triplet loss (metric head) + RPL Loss Weight × (RPL loss + ARPL rejection loss, if enabled) on each training batch, averaged per epoch (formulas: <a href="#s8" style="color:var(--accent-blue);">F2</a>). Trending down means the model is fitting the training data; a plateau means further epochs are giving diminishing returns.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Analytics Page Metrics</h2>
+            <div class="glossary-term">Summary Statistics</div>
+            <div class="glossary-def">Standard descriptive statistics (count, mean, standard deviation, min, quartiles, max) per numeric column — the pandas <code>describe()</code> view.</div>
+            <div class="glossary-term">Correlation Heatmap</div>
+            <div class="glossary-def">Pairwise Pearson correlation between numeric PDW features, colored by strength/direction — reveals redundant or coupled features (e.g. pulse width and duty cycle).</div>
+            <div class="glossary-term">Class Balance / Class Diversity</div>
+            <div class="glossary-def">Row count per class label, plus three population-health stats: <b>Classes</b> (distinct label count), <b>Normalized Shannon Entropy</b> (0–1; 1.0 = perfectly even class distribution, lower = imbalanced), and <b>Max/Min Class Ratio</b> (imbalance ratio — how many times larger the biggest class is than the smallest).</div>
+            <div class="formula">H_norm = − Σ_c p_c ln p_c / ln K        p_c = share of rows in class c,  K = number of classes</div>
+            <div class="glossary-term">Frequency Band Breakdown</div>
+            <div class="glossary-def">Row count per standard radar frequency band (L/S/C/X/Ku/K/Ka — see Radar Frequency Bands above) — the classic first-pass ESM spectrum occupancy view.</div>
+            <div class="glossary-term">PRI Pattern Distribution</div>
+            <div class="glossary-def">Row count per PRI Modulation Pattern type (see above) present in the loaded dataset.</div>
+            <div class="glossary-term">PCA (Principal Component Analysis) — Raw Features</div>
+            <div class="glossary-def">2D projection of the raw physical PDW features, before any model is involved — the baseline separability question every classification task starts with. "Explained variance" states how much of the original feature-space spread the 2 plotted axes actually capture.</div>
+            <div class="formula">features standardized: z = (x − mean) / std        (columns missing in more than 20% of rows are left out)
+PC1, PC2 = the two directions of largest variance (top eigenvectors of the covariance matrix of z)
+explained variance ratio_k = λ_k / Σ λ        λ = eigenvalues</div>
+            <div class="glossary-term">Silhouette Score</div>
+            <div class="glossary-def">Cluster-separation quality score, computed per class label in the raw feature space. Ranges roughly -1 to +1: near +1 means each class is tight and well-separated from the others, 0 means classes overlap, negative means points are on average closer to a different class than their own. The exact score needs every pair of points (cost grows with rows²), so files with more than 5,000 rows are scored on a fixed random sample of 5,000 rows — the standard estimate, identical every time.</div>
+            <div class="formula">s(i) = ( b(i) − a(i) ) / max( a(i), b(i) )        score = mean over all points
+a(i) = mean distance from point i to the other points of its own class
+b(i) = mean distance from point i to the points of the nearest other class</div>
+            <div class="glossary-term">Duty Cycle (%) / PRF (Hz)</div>
+            <div class="glossary-def">See PDW Fields above — both are alternative views of the same pulse-timing information already carried by Pulse Width and PRI.</div>
+            <div class="glossary-term">Dataset Page vs. Analytics</div>
+            <div class="glossary-def">The <b>Dataset page</b> is a quick health check of the dataset you just generated or uploaded: composition, one small histogram per feature (with the configured generation range), and a data-quality table. <b>Analytics</b> is the deep view: per-class and known-vs-unknown distributions, feature ranking, radar-specific charts, separability. Both compute from the same code, so they always agree. Rise/fall times of 0 are treated as "not measured" in both — excluded from charts and counted under Data Quality.</div>
+            <div class="glossary-term">Analytics Dataset Source</div>
+            <div class="glossary-def">Analytics analyses the datasets the platform holds that are made of tracks: the <b>Sequence Dataset</b> (generated, labelled with its seed, or uploaded, labelled with the file's name; all pulses of all tracks, frequency shown in MHz) and <b>every uploaded track file</b>. Pick one under Source and click Load Dataset. Track files are analysed as independent pulses (the per-pulse distributions, not the time order). A large sequence dataset (~100k pulses) takes a few seconds to tens of seconds.</div>
+            <div class="glossary-term">PRI Pattern Check</div>
+            <div class="glossary-def">Does each family's PRI behave like its pri_pattern label? Uses the generator's ground-truth pri_deviation_pct (PRI relative to the operating mode's base PRI), so the operating mode's much larger PRI swings are removed. Pulses right after a missed or spurious pulse, spurious pulses and noise are left out. Shows a histogram per pattern and a table per family (spread, min/max, number of distinct levels). Expected: constant → 0; jittered → narrow ±; staggered / dwell-and-switch → a few fixed levels; sliding → flat ±10–30%; wobulated → peaks at the ends; PGRI → two negative levels (short intra-group PRI, and the group's first pulse at the long gap). Appears for datasets that carry the reference columns (generated datasets). <b>PRI Patterns Over Time</b> draws one example track per pattern against pulse number — the repeating cycle of each type, with missed / spurious pulses marked as spikes — either as measured or as the deviation from the mode's base PRI (the pattern alone).</div>
+            <div class="glossary-term">Data Quality</div>
+            <div class="glossary-def">Blank values, zeros and statistical outliers (beyond 1.5×IQR) per measured column, plus each class's missing/not-measured rate. A gap concentrated in a few classes is a bias risk: a model could learn "missing" itself as a class signal.</div>
+            <div class="glossary-term">Feature Ranking</div>
+            <div class="glossary-def">How useful each feature is on its own. <b>Mutual Information (normalized 0–1)</b>: how much the feature alone reduces uncertainty about the class, including non-linear/multi-modal separation. <b>ANOVA F-score</b>: between-class vs. within-class variance — high when class means are far apart. <b>Known vs Unknown (KS, 0–1)</b>: Kolmogorov–Smirnov distance between known-class and unknown (held-out + noise) rows — high means the feature helps detect unknown emitters (open-set). Use it to choose Input Features; low-ranked features can still help in combination.</div>
+            <div class="formula">MI_norm = min(1, I(X; Y) / ln K)        I = mutual information (k-nearest-neighbour estimate), K = number of classes
+F = [ Σ_c n_c (x̄_c − x̄)² / (K − 1) ] / [ Σ_c Σ_{i∈c} (x_i − x̄_c)² / (n − K) ]      between-class / within-class variance
+KS = max_t | F_known(t) − F_unknown(t) |        largest gap between the two cumulative distributions</div>
+            <div class="glossary-term">Per-Class Distributions / Known vs Unknown</div>
+            <div class="glossary-def">Histogram Viewer coloured by class (share of each class's rows per bin) or by known / held-out / noise group. Little overlap between curves means the feature separates them well. Log-scale bins are available for all-positive features — essential for PRI, PRF, pulse width and bandwidth, which span orders of magnitude.</div>
+            <div class="glossary-term">RF Spectrum Occupancy</div>
+            <div class="glossary-def">Pulse count vs. carrier frequency in fine bins, coloured by radar band. Narrow spikes are fixed-frequency emitters; broad humps are frequency-agile emitters or families spread by their operating modes.</div>
+            <div class="glossary-term">PRI / PRF Histogram (log)</div>
+            <div class="glossary-def">The classic ESM pulse-timing histograms on log-spaced bins, where each peak is a family or operating mode. Low, medium and high PRF regimes (long-range search vs. Doppler/track) appear as separate humps.</div>
+            <div class="glossary-term">PW vs PRI (Duty Cycle Map)</div>
+            <div class="glossary-def">Pulse width against PRI on log-log axes with dashed constant-duty-cycle lines (0.1%, 1%, 10%). Low-duty points are search behaviour; high-duty points are track/illumination. Each family's operating modes form a trail along the lines.</div>
+            <div class="glossary-term">Frequency vs PW Map</div>
+            <div class="glossary-def">The emitter "fingerprint" scatter: each radar family forms a cluster; overlapping clusters are the hard cases for the classifier.</div>
+            <div class="glossary-term">Rise vs Fall Time</div>
+            <div class="glossary-def">Transmitter hardware fingerprint: rise and fall times come from the amplifier/modulator, so families form tight clusters largely independent of operating mode. Zero (not measured) values are excluded.</div>
+            <div class="glossary-term">Time-Bandwidth Product</div>
+            <div class="glossary-def">Pulse width (µs) × bandwidth (MHz). About 1 for a simple unmodulated pulse; much greater than 1 for pulse compression (chirped or phase-coded waveforms) — a waveform-type discriminant. The view reports the share of pulses with a product ≥ 10.</div>
+            <div class="glossary-term">Operating Mode by Class</div>
+            <div class="glossary-def">Stacked bars of each known family's pulses by operating mode. A family seen mostly in one mode during training may be misclassified when it switches mode.</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Fusion Verdicts &amp; ECM (Electronic Countermeasures) Actions</h2>
+            <div class="glossary-def" style="margin-top:0;">Every window (and, by vote, every track) gets one verdict, produced by combining the classifier head's confidence with the prototype-distance check — neither signal is trusted alone.</div>
+            <div class="glossary-term">VERIFIED_KNOWN_TARGET</div>
+            <div class="glossary-def">High classifier confidence AND small prototype distance — the model is confident and the embedding genuinely resembles a known prototype. ECM action: <b>MONITOR_ONLY</b> (no active response needed for a verified, already-known emitter).</div>
+            <div class="glossary-term">UNKNOWN_THREAT_ANOMALY</div>
+            <div class="glossary-def">High classifier confidence BUT large prototype distance — the classifier is (over-)confident, yet the embedding doesn't actually sit near any known prototype. Treated as a possible novel/spoofed emitter. ECM action: <b>AUTOMATED_JAMMER_ENGAGED</b> (treat as a live threat pending human confirmation).</div>
+            <div class="glossary-term">OOD_NOISE_REJECTED</div>
+            <div class="glossary-def">Low classifier confidence — the model itself isn't sure, regardless of distance. ECM action: <b>ELINT_LOGGING</b> (logged for later Electronic Intelligence analysis rather than acted on immediately).</div>
+        </div>
+
+        <div class="glossary-section">
+            <h2>Live Simulation</h2>
+            <div class="glossary-term">Tracks simulation</div>
+            <div class="glossary-def">Runs the sequence model in use on several simulated de-interleaved tracks at once: each new pulse of a track re-classifies its last ≤ k pulses, so you watch each track's decision firm up as it grows. Tracks end and new emitters appear. Settings: emitters at once (max 12), unknown share (new tracks that are held-out families or noise), missed / spurious %, pulses per second, duration (max 15 minutes). Ground truth is shown for scoring only and is never given to the model. Details: <a href="#sq9" style="color:var(--accent-blue);">S9</a>.</div>
+            <div class="glossary-term">Situational Awareness Tiles</div>
+            <div class="glossary-def">Tracks Seen, and — among the tracks still active right now — Verified Known, Unknown Threats and Rejected, plus Correct at track end: the share of finished tracks decided correctly (known track: right class and verified; unknown track: not verified as known). Modeled on real EW console research (e.g. AN/SLQ-32 human-factors studies): operators need to track multiple concurrent emitters at a glance, not just the single latest reading.</div>
+            <div class="glossary-term">Track table and selected track</div>
+            <div class="glossary-def">The primary view — newest activity first, colored by verdict: each track's pulses seen, predicted class, confidence, distance, verdict and ground truth. Click a track to see its confidence as pulses arrive and its PRI vs pulse number.</div>
+            <div class="glossary-term">Connection badge</div>
+            <div class="glossary-def">IDLE (not running), CONNECTING, LIVE · run # (the model in use, its backbone and k), COMPLETE (duration elapsed), STOPPED (you stopped it) or ERROR (e.g. no sequence model yet, or a model that uses dataset columns the simulator can't produce).</div>
+        </div>
+
+    </div>
+
+    <script src="/static/escape.js"></script>
+    <script src="/static/help_search.js"></script>
+    <script>
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>

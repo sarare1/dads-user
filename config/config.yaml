@@ -1,0 +1,12 @@
+model:
+  # Defaults for the next sequence training run (the Training page's Sequence Model card sets the
+  # backbone, window length and per-pulse features per run, and overrides the embedding size).
+  embedding_dim: 128
+  num_classes: 20
+
+hyperparameters:
+  learning_rate: 0.001
+  triplet_margin: 0.5
+  classifier_confidence_threshold: 0.88
+  ood_distance_threshold: 0.42
+  distance_metric: "cosine"  # Options: cosine, euclidean

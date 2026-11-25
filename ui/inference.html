@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DADS - PhD Research Project — Inference</title>
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/escape.js"></script>
+    <link rel="stylesheet" href="/static/shared.css">
+    <script src="/static/sequence_selector.js"></script>
+    <style>
+        .track-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+        .track-table th, .track-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-color); text-align: left; white-space: nowrap; }
+        .track-table th { color: var(--accent-blue); font-size: 8pt; text-transform: uppercase; }
+        .v-VERIFIED_KNOWN_TARGET { color: #10b981; } .v-UNKNOWN_THREAT_ANOMALY { color: #f59e0b; } .v-OOD_NOISE_REJECTED { color: #ef4444; }
+        #track-csv { width: 100%; min-height: 150px; font-family: Consolas, monospace; font-size: 8pt; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>DADS - PhD Research Project</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-tag">INFERENCE</span>
+            <a href="#" onclick="logout(); return false;" class="status-tag" style="background:#374151; color:#e5e7eb; cursor:pointer; text-decoration:none;">Logout</a>
+        </div>
+    </header>
+    <nav class="top-nav">
+        <a href="/">Training</a>
+        <a href="/validation">Testing</a>
+        <a href="/inference" class="active">Inference</a>
+        <a href="/dataset">Dataset</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/live">Live Simulation</a>
+        <a href="/help">Help</a>
+    </nav>
+
+    <div class="main-container" id="track-mode">
+        <div class="sidebar">
+            <div id="seq-selector" style="margin-bottom: 14px;"></div>
+            <div class="card-title">Track Input</div>
+            <div class="hint" style="margin-bottom:8px;">The ordered pulses of <b>one emitter</b> (or several tracks), as a de-interleaver delivers them — one CSV row per pulse: <code>instance</code> (the track; optional for a single track), <code>pulse_idx</code>, and the measurements the model was trained on (<code>Frequency</code> in MHz, <code>PW</code>, <code>PRI</code>, <code>Modlntype</code>, <code>Modlnval</code>, <code>snr</code>, <code>rise</code>, <code>fall</code>, <code>timeBW</code> in Hz, plus any extra feature columns). The first pulse may have a blank PRI. No time of arrival needed.</div>
+            <div class="card-title" style="font-size: 9pt;">Generate an example track</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div><label>Kind</label><select id="ex-kind">
+                    <option value="known">Known family</option>
+                    <option value="unknown">Held-out family (unknown)</option>
+                    <option value="noise">Unstructured noise</option></select></div>
+                <div><label>Family (known)</label><select id="ex-class"><option value="">random</option></select></div>
+                <div><label>Pulses</label><input type="number" id="ex-pulses" value="96" min="4" max="2000"></div>
+                <div><label>Take from</label><select id="ex-source">
+                    <option value="test">Model's test tracks (never trained on)</option>
+                    <option value="any">Whole dataset (incl. training tracks)</option></select></div>
+                <div><label>Missed / spurious %</label><input type="text" id="ex-errors" value="2 / 2"></div>
+            </div>
+            <div class="hint" id="ex-dataset-note" style="margin-top:4px;">Examples are real tracks from the dataset the selected model was trained on, under that model's own emitter names. Missed / spurious rates only apply when the dataset is no longer stored and a track has to be simulated.</div>
+            <button style="background:#374151; color:white;" onclick="generateExample()">Generate Example Track</button>
+            <div id="ex-status" class="hint"></div>
+            <label style="margin-top: 12px;">Pulses (CSV)</label>
+            <textarea id="track-csv" placeholder="Frequency,PW,PRI,Modlntype,Modlnval,snr,rise,fall,timeBW,instance,pulse_idx"></textarea>
+            <input type="file" id="track-file" accept=".csv" style="margin-top:6px;" onchange="loadTrackFile()">
+            <button onclick="classifyTrack()">Classify Track</button>
+            <div id="track-status" class="hint"></div>
+        </div>
+
+        <div class="page-content">
+            <div id="track-picker-wrap" style="display:none; margin-bottom:10px;"><label>Track</label><select id="track-picker" onchange="showTrack(parseInt(this.value))"></select></div>
+            <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="card">
+                    <div id="track-verdict" class="verdict-box badge-green">CLASSIFY A TRACK TO SEE A RESULT</div>
+                    <div class="telemetry-row"><span>Predicted class (vote; “nearest known” when rejected):</span><b id="tr-class">-</b></div>
+                    <div class="telemetry-row"><span>Window votes:</span><b id="tr-votes">-</b></div>
+                    <div class="telemetry-row"><span>Mean Confidence:</span><b id="tr-conf">-</b></div>
+                    <div class="telemetry-row"><span>Median Prototype Distance:</span><b id="tr-dist">-</b></div>
+                    <div class="telemetry-row"><span>Windows verified known:</span><b id="tr-verified">-</b></div>
+                    <div class="telemetry-row"><span>Pulses / window k:</span><b id="tr-pulses">-</b></div>
+                    <div class="telemetry-row"><span>Thresholds (τ_c / τ_d):</span><b id="tr-thresholds">-</b></div>
+                    <div class="telemetry-row"><span>Ground truth (example / file):</span><b id="tr-truth">-</b></div>
+                    <div class="telemetry-row"><span>Automated ECM Action:</span><b id="tr-ecm" style="color:var(--accent-orange);">-</b></div>
+                    <div class="definition">The network always names its <i>closest</i> known family — even for a track it does not recognise. So when the verdict is not “verified known”, the class is shown as “UNKNOWN (nearest known: …)”: for unknown or noise tracks the same look-alike family tends to come up every time, which is expected and not a classification. Track class = majority vote over its windows of k consecutive pulses; verdict = most common window verdict (a window is verified known when confidence ≥ τ_c and distance ≤ τ_d).</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Decision as pulses arrive</div>
+                    <div style="height:230px;"><canvas id="chart-progress"></canvas></div>
+                    <div class="definition">The decision on the last ≤ k pulses after each new pulse — what Live Simulation shows. With few pulses there is no pattern to see; confidence and distance settle as the PRI pattern and frequency agility emerge. Point colour = verdict.</div>
+                </div>
+            </div>
+            <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr; margin-top: 12px;">
+                <div class="card"><div class="card-title">PRI vs pulse number</div><div style="height:200px;"><canvas id="chart-tr-pri"></canvas></div></div>
+                <div class="card"><div class="card-title">Frequency vs pulse number</div><div style="height:200px;"><canvas id="chart-tr-freq"></canvas></div></div>
+            </div>
+            <div class="card" style="margin-top: 12px;">
+                <div class="card-title">Windows</div>
+                <div style="overflow-x:auto;"><table class="track-table" id="tr-windows"></table></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+
+        // ---------------------------------------------------------------- pulse-train inference
+        const VERDICT_COLOR = { VERIFIED_KNOWN_TARGET: '#10b981', UNKNOWN_THREAT_ANOMALY: '#f59e0b', OOD_NOISE_REJECTED: '#ef4444' };
+        let trackCharts = [], trackResult = null, exampleTruth = null;
+        // A rejected track still has a nearest known family; show it as that, not as the track's class.
+        const shownClass = (cls, verdict) => verdict === 'VERIFIED_KNOWN_TARGET' ? cls : `UNKNOWN (nearest known: ${cls})`;
+
+        async function initTrackMode() {
+            const m = await renderSequenceSelector('seq-selector', { onSwitched: () => refreshFamilies() });
+            if (m) refreshFamilies();
+        }
+
+        async function refreshFamilies() {
+            // Known families of the selected model, from an example request (also validates the model).
+            const r = await (await fetch('/api/sequence/example_track', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ kind: 'known', pulses: 4 }) })).json();
+            if (r.status !== 'success') { document.getElementById('ex-status').innerText = r.message || ''; return; }
+            document.getElementById('ex-class').innerHTML = '<option value="">random</option>' +
+                (r.known_classes || r.known_class_ids.map(c => ({ id: c, label: `RADAR_FAMILY_${String(c).padStart(2, '0')}` })))
+                    .map(c => `<option value="${c.id}">${escapeHtml(c.label)}</option>`).join('');
+        }
+
+        async function generateExample() {
+            const [missed, spurious] = document.getElementById('ex-errors').value.split('/').map(v => (parseFloat(v) || 0) / 100);
+            const cls = document.getElementById('ex-class').value;
+            const r = await (await fetch('/api/sequence/example_track', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+                kind: document.getElementById('ex-kind').value, class_id: cls === '' ? null : parseInt(cls),
+                pulses: parseInt(document.getElementById('ex-pulses').value) || 96, missed_pct: missed || 0, spurious_pct: spurious || 0,
+                source: document.getElementById('ex-source').value }) })).json();
+            const st = document.getElementById('ex-status');
+            if (r.status !== 'success') { st.innerText = r.message; return; }
+            document.getElementById('track-csv').value = r.csv_text;
+            exampleTruth = r.true_label;
+            const pattern = r.pri_pattern && r.pri_pattern !== 'n/a' ? ` (PRI pattern ${r.pri_pattern}, frequency ${r.freq_agility})` : '';
+            st.innerText = `Example: ${r.true_label}${pattern} — from ${r.source}.${r.note ? ' ' + r.note : ''} Click Classify Track.`;
+        }
+
+        function loadTrackFile() {
+            const f = document.getElementById('track-file').files[0];
+            if (!f) return;
+            const reader = new FileReader();
+            reader.onload = () => { document.getElementById('track-csv').value = reader.result; exampleTruth = null; };
+            reader.readAsText(f);
+        }
+
+        async function classifyTrack() {
+            const st = document.getElementById('track-status');
+            const text = document.getElementById('track-csv').value.trim();
+            if (!text) { st.innerText = 'Paste, load or generate a track first.'; return; }
+            st.innerText = 'Classifying...';
+            const r = await (await fetch('/api/sequence/infer', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ csv_text: text }) })).json();
+            if (r.status !== 'success') { st.innerText = r.message || 'Failed.'; return; }
+            trackResult = r;
+            st.innerText = `${r.tracks.length} track(s) classified by run #${r.run_id}${r.model_name ? ' (' + r.model_name + ')' : ''}, ${r.backbone_type}, k=${r.window}.`;
+            const picker = document.getElementById('track-picker');
+            picker.innerHTML = r.tracks.map((t, i) => `<option value="${i}">track ${escapeHtml(t.track_id)} — ${t.pulses} pulses → ${escapeHtml(shownClass(t.class, t.verdict))} / ${t.verdict}</option>`).join('');
+            document.getElementById('track-picker-wrap').style.display = r.tracks.length > 1 ? '' : 'none';
+            showTrack(0);
+        }
+
+        function showTrack(i) {
+            const r = trackResult, t = r.tracks[i];
+            const box = document.getElementById('track-verdict');
+            box.innerText = t.verdict;
+            box.className = `verdict-box badge-${t.color.toLowerCase()}`;
+            document.getElementById('tr-class').innerText = shownClass(t.class, t.verdict);
+            document.getElementById('tr-votes').innerText = `${t.class_votes} windows`;
+            document.getElementById('tr-conf').innerText = t.confidence;
+            document.getElementById('tr-dist').innerText = t.distance;
+            document.getElementById('tr-verified').innerText = `${t.verified_windows} / ${t.num_windows}`;
+            document.getElementById('tr-pulses').innerText = `${t.pulses} / ${t.window}`;
+            document.getElementById('tr-thresholds').innerText = `${r.thresholds.classifier_confidence_threshold} / ${r.thresholds.ood_distance_threshold}`;
+            const truth = t.true_label || (r.tracks.length === 1 ? exampleTruth : null);
+            document.getElementById('tr-truth').innerText = truth || '— (not given)';
+            document.getElementById('tr-ecm').innerText = t.ecm_trigger;
+            trackCharts.forEach(c => c.destroy()); trackCharts = [];
+            const pr = t.progression;
+            trackCharts.push(new Chart(document.getElementById('chart-progress').getContext('2d'), {
+                type: 'line',
+                data: { labels: pr.map(p => p.pulses_seen), datasets: [
+                    { label: 'Confidence', data: pr.map(p => p.confidence), borderColor: '#00d2ff', pointBackgroundColor: pr.map(p => VERDICT_COLOR[p.verdict]), pointRadius: 3, yAxisID: 'y' },
+                    { label: 'Distance', data: pr.map(p => p.distance), borderColor: '#a78bfa', pointRadius: 0, yAxisID: 'y2' },
+                    { label: 'τ_d', data: pr.map(() => r.thresholds.ood_distance_threshold), borderColor: '#a78bfa', borderDash: [4, 4], pointRadius: 0, yAxisID: 'y2' },
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { tooltip: { callbacks: { afterLabel: (ctx) => `${shownClass(pr[ctx.dataIndex].class, pr[ctx.dataIndex].verdict)} · ${pr[ctx.dataIndex].verdict}` } } },
+                    scales: { x: { title: { display: true, text: 'Pulses seen' } }, y: { min: 0, max: 1, title: { display: true, text: 'Confidence' } },
+                              y2: { position: 'right', type: 'logarithmic', grid: { drawOnChartArea: false }, title: { display: true, text: 'Distance (log)' } } } },
+            }));
+            const series = (canvas, values, scale, title, log) => trackCharts.push(new Chart(document.getElementById(canvas).getContext('2d'), {
+                type: 'line', data: { labels: values.map((_, j) => j), datasets: [{ data: values.map(v => v === null ? null : v / scale), borderColor: '#00d2ff', pointRadius: 1.5, borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
+                    scales: { x: { title: { display: true, text: 'Pulse number' } }, y: { type: log ? 'logarithmic' : 'linear', title: { display: true, text: title } } } },
+            }));
+            series('chart-tr-pri', t.pri_us, 1, 'PRI (µs)', true);
+            series('chart-tr-freq', t.freq_mhz, 1, 'MHz', false);
+            document.getElementById('tr-windows').innerHTML = '<tr><th>Pulses</th><th>Class</th><th>Confidence</th><th>Distance</th><th>Nearest prototype</th><th>Verdict</th></tr>' +
+                t.windows.map(w => `<tr><td>${w.start + 1}–${w.end}</td><td>${escapeHtml(shownClass(w.class, w.verdict))}</td><td>${w.confidence}</td><td>${w.distance}</td><td>${escapeHtml(w.nearest_prototype)}</td><td class="v-${w.verdict}">${w.verdict}</td></tr>`).join('');
+        }
+
+        initTrackMode().catch(() => {});
+    </script>
+</body>
+</html>

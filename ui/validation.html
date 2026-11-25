@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DADS - PhD Research Project — Testing</title>
+    <link rel="stylesheet" href="/static/shared.css">
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/escape.js"></script>
+    <style>
+        table.history { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 10px; }
+        table.history th, table.history td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        table.history th { color: var(--accent-blue); text-transform: uppercase; font-size: 8pt; }
+        .detail h3 { margin: 18px 0 4px; font-size: 10pt; color: var(--accent-blue); }
+        .detail table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+        .detail th, .detail td { padding: 5px 8px; border-bottom: 1px solid var(--border-color); text-align: right; white-space: nowrap; }
+        .detail th:first-child, .detail td:first-child { text-align: left; }
+        .detail th { color: var(--accent-blue); font-size: 8pt; text-transform: uppercase; position: sticky; top: 0; background: var(--card-bg, #111827); }
+        .detail .scroll { overflow: auto; max-height: 360px; }
+        .detail .bad { color: #ef4444; } .detail .good { color: #10b981; } .detail .warn { color: #f59e0b; }
+        .detail .tools { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+        .detail .tools input[type=text], .detail .tools select { width: auto; margin: 0; }
+        .detail .tools button { margin: 0; width: auto; padding: 4px 10px; font-size: 8.5pt; }
+        .detail td.cm { text-align: center; min-width: 54px; }
+        .link-btn { background: none; border: 1px solid var(--border-color); color: var(--accent-blue); padding: 2px 8px; cursor: pointer; font-size: 8pt; border-radius: 4px; width: auto; margin: 0; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>DADS - PhD Research Project</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-tag">TESTING</span>
+            <a href="#" onclick="logout(); return false;" class="status-tag" style="background:#374151; color:#e5e7eb; cursor:pointer; text-decoration:none;">Logout</a>
+        </div>
+    </header>
+    <nav class="top-nav">
+        <a href="/">Training</a>
+        <a href="/validation" class="active">Testing</a>
+        <a href="/inference">Inference</a>
+        <a href="/dataset">Dataset</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/live">Live Simulation</a>
+        <a href="/help">Help</a>
+    </nav>
+
+    <div class="main-container">
+        <div class="page-content">
+            <div class="card" style="max-width: 900px; border-top: 3px solid var(--accent-purple, #7c3aed);">
+                <div class="card-title">Sequence Model Test (pulse trains)</div>
+                <div class="hint" style="margin-bottom: 12px;">Tests a pulse-sequence model (trained on the Training page) on whole tracks, scored against the model's <b>stored</b> prototypes with its own thresholds. <b>Fresh tracks</b> are new tracks of the families the model was trained on — raise the missed / spurious pulse rates to test robustness to imperfect de-interleaving.</div>
+                <label>Sequence Model</label>
+                <select id="seq-model"></select>
+                <label>Test Tracks</label>
+                <select id="seq-source" onchange="seqSourceChanged()">
+                    <option value="test_split">The model's held-out test split (tracks never trained on)</option>
+                    <option value="auto" selected>Fresh tracks of the model's families (auto-generated)</option>
+                    <option value="dataset">A stored dataset (generated or uploaded) — choose below</option>
+                </select>
+                <div id="seq-model-dataset" class="hint" style="margin-top:4px;"></div>
+                <div id="seq-auto-opts" style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                    <div><label>Tracks per class</label><input type="number" id="seq-tracks" value="20" min="2" max="500"></div>
+                    <div><label>Missed pulses (%)</label><input type="number" id="seq-missed" placeholder="as trained" min="0" max="50" step="0.5"></div>
+                    <div><label>Spurious pulses (%)</label><input type="number" id="seq-spurious" placeholder="as trained" min="0" max="50" step="0.5"></div>
+                    <div><label>Window (pulses)</label><input type="number" id="seq-window" placeholder="as trained" min="1" max="512"></div>
+                </div>
+                <div id="seq-upload-opts" style="display:none;">
+                    <label>Test dataset</label>
+                    <select id="seq-upload-select"></select>
+                    <div class="hint" style="margin-top:4px;">Testing on the dataset the model was trained on includes its training tracks, so accuracy will look better than on new data — prefer a different dataset or fresh tracks. Datasets are managed on the Dataset page; you can also upload a track file here (one row per pulse: track_id, pulse_idx, measurements, true_class_id), which is stored as a new dataset.</div>
+                    <input type="file" id="seq-test-file" accept=".csv" style="margin-top: 5px;">
+                    <button style="background: #374151; color: white;" onclick="uploadSequenceTest()">Upload Track File</button>
+                    <div id="seq-upload-status" class="hint"></div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><label>Override τ_c (blank = model's own)</label><input type="number" id="seq-ovr-tau-c" placeholder="model's own" min="0.01" max="0.99" step="0.01"></div>
+                    <div><label>Override τ_d (blank = model's own)</label><input type="number" id="seq-ovr-tau-d" placeholder="model's own" min="0.001" step="0.01"></div>
+                </div>
+                <div class="hint">Try other thresholds on the trained model without retraining — e.g. a lower τ_d catches more unknown tracks but rejects more known windows. The verdict split and "unknown tracks flagged" change; accuracy and AUROC don't (they don't depend on thresholds).</div>
+                <button style="background: var(--accent-purple); color: white;" onclick="runSequenceTest()">Run Sequence Test</button>
+                <div id="seq-test-status" class="status-line"></div>
+                <div id="seq-test-results" style="margin-top: 12px;"></div>
+            </div>
+
+            <div class="card" style="max-width: 900px; margin-top: 20px;">
+                <div class="card-title">Test History — Compare Runs</div>
+                <div id="history-summary" class="hint">Loading...</div>
+                <div style="overflow-x: auto;">
+                    <table class="history" id="history-table"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadHistory() {
+            const resp = await fetch('/api/test/history');
+            const data = await resp.json();
+            const runs = data.runs || [];
+
+            document.getElementById('history-summary').innerText =
+                runs.length === 0 ? 'No test runs yet.' : `${runs.length} run(s) recorded.`;
+
+            const table = document.getElementById('history-table');
+            if (runs.length === 0) { table.innerHTML = ''; return; }
+
+            const headers = ['Timestamp (IST)', 'Model', 'Backbone', 'Features', 'Distance', 'Test Dataset', 'Dataset Source', 'Dataset Seed', 'Pulses / Windows', 'Known', 'Holdout', 'Accuracy', 'Track Accuracy', 'AUROC', ''];
+            let html = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+            for (const r of runs) {
+                html += `<tr>
+                    <td>${escapeHtml(r.timestamp_ist)}</td>
+                    <td>${r.model_name ? '★ ' + escapeHtml(r.model_name) : (r.run_id ? 'run #' + escapeHtml(r.run_id) : '—')}</td>
+                    <td>${escapeHtml(r.backbone_type)}</td>
+                    <td>${r.features ? escapeHtml(r.features.split(',').join(', ')) : 'N/A'}</td>
+                    <td>${escapeHtml(r.distance_metric)}</td>
+                    <td>${r.dataset_name ? escapeHtml(r.dataset_name) : '<span class="hint">fresh tracks</span>'}</td>
+                    <td>${escapeHtml(r.dataset_source)}</td>
+                    <td>${escapeHtml(r.dataset_seed ?? 'N/A')}</td>
+                    <td>${r.total_pulses ?? 'N/A'}</td>
+                    <td>${r.num_known_classes}</td>
+                    <td>${r.num_holdout_classes}</td>
+                    <td>${(r.closed_set_accuracy * 100).toFixed(1)}%</td>
+                    <td>${r.track_accuracy !== null && r.track_accuracy !== undefined ? (r.track_accuracy * 100).toFixed(1) + '%' : '—'}</td>
+                    <td>${r.open_set_auroc !== null ? Number(r.open_set_auroc).toFixed(3) : 'N/A'}</td>
+                    <td><button class="link-btn" onclick="openTest(${r.id})">Details</button></td>
+                </tr>`;
+            }
+            table.innerHTML = html;
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        // ---------------------------------------------------------------- sequence model test
+        let seqChart = null;
+        let seqModels = [];
+        async function loadSequenceModels() {
+            const data = await (await fetch('/api/sequence/models')).json();
+            seqModels = data.models;
+            const sel = document.getElementById('seq-model');
+            sel.innerHTML = data.models.length
+                ? data.models.map(m => `<option value="${m.run_id}">${m.name ? '★ ' + escapeHtml(m.name) + ' — ' : ''}run #${m.run_id} (${m.backbone_type}, k=${m.window_k}, acc ${(m.closed_set_accuracy * 100).toFixed(1)}%${m.dataset_name ? ', trained on ' + escapeHtml(m.dataset_name) : ''}${m.parent_run_id ? ', ← #' + m.parent_run_id + ' ' + m.incremental_method : ''})</option>`).join('')
+                : '<option value="">No sequence model yet — train one on the Training page</option>';
+            sel.onchange = () => { modelChanged(); };
+            await loadTestDatasets();
+            modelChanged();
+        }
+        async function loadTestDatasets(select) {
+            const data = await (await fetch('/api/datasets')).json();
+            const list = data.datasets || [];
+            const el = document.getElementById('seq-upload-select');
+            el.innerHTML = list.length
+                ? list.map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} — ${escapeHtml(d.kind)}, ${d.tracks ?? '?'} tracks</option>`).join('')
+                : '<option value="">No datasets yet — generate or upload one</option>';
+            if (select) el.value = select;
+        }
+        function modelChanged() {
+            const m = seqModels.find(x => String(x.run_id) === document.getElementById('seq-model').value);
+            const split = !m ? '' : (m.test_pct > 0
+                ? ` Its held-out test split is ${m.test_pct}% of the tracks of every class${m.include_test ? ' - but it was ALSO used for training this model, so it is not an independent test' : ' (never trained on)'}.`
+                : ' It has no held-out test split (older run, or test share 0%).');
+            document.getElementById('seq-model-dataset').innerText = m
+                ? (m.dataset_name ? `This model was trained on dataset “${m.dataset_name}”.` : `This model was trained on a dataset from before datasets were named (seed ${m.dataset_seed ?? '?'}).`) + split : '';
+            if (m && m.dataset_name && [...document.getElementById('seq-upload-select').options].some(o => o.value === m.dataset_name))
+                document.getElementById('seq-upload-select').value = m.dataset_name;
+        }
+        function seqSourceChanged() {
+            const src = document.getElementById('seq-source').value;
+            document.getElementById('seq-auto-opts').style.display = src === 'auto' ? 'grid' : 'none';
+            document.getElementById('seq-upload-opts').style.display = src === 'dataset' ? '' : 'none';
+        }
+        async function uploadSequenceTest() {
+            const f = document.getElementById('seq-test-file').files[0];
+            const st = document.getElementById('seq-upload-status');
+            if (!f) { st.innerText = 'Choose a CSV file first.'; return; }
+            const fd = new FormData(); fd.append('file', f);
+            const data = await (await fetch('/api/sequence/test/upload', { method: 'POST', body: fd })).json();
+            st.innerText = data.status === 'success' ? `Uploaded and stored as dataset “${data.name}”.` : (data.message || 'Upload failed.');
+            if (data.status === 'success') await loadTestDatasets(data.name);
+        }
+        async function runSequenceTest() {
+            const st = document.getElementById('seq-test-status');
+            const out = document.getElementById('seq-test-results');
+            const runId = parseInt(document.getElementById('seq-model').value);
+            if (!runId) { st.innerText = 'Train a sequence model first.'; return; }
+            const num = (id, scale = 1) => { const v = document.getElementById(id).value; return v === '' ? null : parseFloat(v) / scale; };
+            const source = document.getElementById('seq-source').value;
+            const payload = { run_id: runId, source, tracks_per_class: parseInt(document.getElementById('seq-tracks').value) || 20,
+                              missed_pct: num('seq-missed', 100), spurious_pct: num('seq-spurious', 100), window: num('seq-window'),
+                              classifier_confidence_threshold: num('seq-ovr-tau-c'), ood_distance_threshold: num('seq-ovr-tau-d') };
+            if (source === 'dataset') {
+                payload.filename = document.getElementById('seq-upload-select').value;
+                if (!payload.filename) { st.innerText = 'Choose or upload a dataset first.'; return; }
+            }
+            st.innerText = 'Evaluating...'; out.innerHTML = '';
+            const data = await (await fetch('/api/sequence/test', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })).json();
+            if (data.status !== 'success') { st.innerText = data.message || 'Test failed.'; return; }
+            renderSequenceResult(data);
+            await loadHistory();
+        }
+
+        async function openTest(id) {
+            const st = document.getElementById('seq-test-status');
+            st.innerText = `Loading test #${id}…`;
+            try {
+                const data = await (await fetch(`/api/test/history/${id}`)).json();
+                if (data.status !== 'success') { st.innerText = data.message || 'Not available.'; return; }
+                renderSequenceResult(data);
+                document.getElementById('seq-test-results').scrollIntoView({ behavior: 'smooth' });
+            } catch (e) { st.innerText = `Could not load it: ${e.message}`; }
+        }
+
+        function renderSequenceResult(data) {
+            const st = document.getElementById('seq-test-status');
+            const out = document.getElementById('seq-test-results');
+            const m = data.result;
+            const pct = (x) => x === null || x === undefined ? '—' : (x * 100).toFixed(1) + '%';
+            st.innerText = `Evaluated against: ${data.run.dataset_source}`;
+            out.innerHTML = `
+                <div class="dashboard-grid" style="grid-template-columns: repeat(4, 1fr); padding: 0; gap: 12px;">
+                    <div class="metric-block"><div class="metric-value">${pct(m.closed_set_accuracy)}</div><div class="metric-label">Window accuracy (k=${m.window})</div></div>
+                    <div class="metric-block"><div class="metric-value">${pct(m.track_accuracy)}</div><div class="metric-label">Track accuracy (vote)</div></div>
+                    <div class="metric-block"><div class="metric-value">${m.open_set_auroc !== null ? m.open_set_auroc.toFixed(3) : 'N/A'}</div><div class="metric-label">Open-set AUROC</div></div>
+                    <div class="metric-block"><div class="metric-value">${pct(m.track_unknown_detection)}</div><div class="metric-label">Unknown tracks flagged</div></div>
+                </div>
+                <div class="telemetry-row"><span>Tracks (known / unknown):</span><b>${m.num_tracks_known} / ${m.num_tracks_unknown}</b></div>
+                <div class="telemetry-row"><span>Windows (known / unknown):</span><b>${m.num_windows_known} / ${m.num_windows_unknown}</b></div>
+                <div class="telemetry-row"><span>Thresholds used:</span><b>τ_c = ${m.thresholds.classifier_confidence_threshold}, τ_d = ${m.thresholds.ood_distance_threshold}${m.thresholds.overridden ? ' (overridden for this test)' : " (the model's own)"}</b></div>
+                <div class="telemetry-row"><span>Known windows verified / unknown windows not verified:</span><b>${(() => { const k = m.verdicts.known || {}, u = m.verdicts.unknown || {}; const kt = Object.values(k).reduce((a, b) => a + b, 0), ut = Object.values(u).reduce((a, b) => a + b, 0);
+                    return `${kt ? ((k.VERIFIED_KNOWN_TARGET || 0) / kt * 100).toFixed(1) : '—'}% / ${ut ? ((ut - (u.VERIFIED_KNOWN_TARGET || 0)) / ut * 100).toFixed(1) : '—'}%`; })()}</b></div>
+                <div class="hint" style="margin-top:10px;"><b>Accuracy vs. pulses observed</b> — one decision per track after its first 2, 4, 8, … pulses, from those pulses only (as Live Simulation decides):</div>
+                <div style="height:230px;"><canvas id="seq-curve"></canvas></div>`;
+            if (seqChart) seqChart.destroy();
+            const c = m.pulses_curve || [];
+            seqChart = new Chart(document.getElementById('seq-curve').getContext('2d'), {
+                type: 'line',
+                data: { labels: c.map(p => p.pulses), datasets: [
+                    { label: 'Closed-set accuracy', data: c.map(p => p.accuracy), borderColor: '#00d2ff', backgroundColor: '#00d2ff', tension: 0.2 },
+                    { label: 'Open-set AUROC', data: c.map(p => p.auroc), borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: 0.2 } ] },
+                options: { responsive: true, maintainAspectRatio: false,
+                    scales: { x: { title: { display: true, text: 'Pulses observed' } }, y: { min: 0, max: 1 } } },
+            });
+            renderDetail(m, out);
+        }
+
+        // ---------------------------------------------------------------- per-emitter detail
+        const fmtp = (x) => x === null || x === undefined ? '—' : (x * 100).toFixed(1) + '%';
+        const fmtn = (x) => x === null || x === undefined ? '—' : x;
+        let tauChart = null, detailTracks = [];
+
+        function downloadCsv(name, header, rows) {
+            const q = (v) => { v = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+            const blob = new Blob([[header, ...rows].map(r => r.map(q).join(',')).join('\n')], { type: 'text/csv' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+        }
+
+        function renderDetail(m, out) {
+            const d = m.detail;
+            const box = document.createElement('div'); box.className = 'detail';
+            out.appendChild(box);
+            if (!d) { box.innerHTML = '<div class="hint" style="margin-top:12px;">No per-emitter detail is stored for this test.</div>'; return; }
+            const f1c = (v) => v === null ? '' : v >= 0.9 ? 'good' : v < 0.7 ? 'bad' : 'warn';
+            const em = d.emitters;
+            box.innerHTML = `
+                <h3>Per-emitter performance (known emitters)</h3>
+                <div class="hint">Window-level precision / recall / F1 over the known tracks' windows; track accuracy = the track's voted class is right; “verified” = windows passing both thresholds; “rejected” = known windows that were not verified (known emitters the model would call unknown).</div>
+                <div class="scroll"><table><tr><th>Emitter</th><th>Tracks</th><th>Windows</th><th>Precision</th><th>Recall</th><th>F1</th><th>Track acc.</th><th>Verified</th><th>Rejected</th><th>Mean conf.</th><th>Median dist.</th><th>Most confused with</th></tr>
+                ${em.map(e => `<tr><td>${escapeHtml(e.emitter)}</td><td>${e.tracks}</td><td>${e.windows}</td><td>${fmtp(e.precision)}</td><td>${fmtp(e.recall)}</td><td class="${f1c(e.f1)}">${fmtp(e.f1)}</td><td>${fmtp(e.track_accuracy)}</td><td>${fmtp(e.verified_rate)}</td><td>${fmtp(e.rejected_rate)}</td><td>${fmtn(e.mean_confidence)}</td><td>${fmtn(e.median_distance)}</td><td style="text-align:left">${e.confused_with ? escapeHtml(e.confused_with) + ' (' + fmtp(e.confused_share) + ')' : '—'}</td></tr>`).join('') || '<tr><td colspan="12">No known tracks in this test.</td></tr>'}
+                </table></div>
+                <div class="tools"><button class="link-btn" id="dl-emitters">Download CSV</button></div>
+
+                <h3>Confusion matrix (tracks: true emitter × voted class)</h3>
+                <div class="hint">Each row is a true emitter (unknown/noise tracks too); cells count tracks by the class the vote chose. Last column: tracks of that row whose verdict was <i>not</i> “verified known” (flagged as unknown).</div>
+                <div class="scroll"><table id="cm-table"></table></div>
+
+                ${d.unknown.length ? `<h3>Unknown and noise tracks</h3>
+                <div class="hint">“Flagged” = the track's verdict was not “verified known” (good for unknowns). “Accepted as known” = windows wrongly verified as a known emitter (the dangerous error).</div>
+                <div class="scroll"><table><tr><th>Type</th><th>Tracks</th><th>Flagged unknown</th><th>Windows accepted as known</th><th>Median dist.</th><th>Looks most like</th></tr>
+                ${d.unknown.map(u => `<tr><td>${escapeHtml(u.label)}</td><td>${u.tracks}</td><td class="${u.flagged_rate >= 0.9 ? 'good' : u.flagged_rate < 0.6 ? 'bad' : 'warn'}">${fmtp(u.flagged_rate)}</td><td class="${u.windows_accepted_as_known > 0.1 ? 'bad' : ''}">${fmtp(u.windows_accepted_as_known)}</td><td>${fmtn(u.median_distance)}</td><td style="text-align:left">${escapeHtml(u.nearest_known || '—')}</td></tr>`).join('')}
+                </table></div>` : ''}
+
+                ${d.tau_curve.length ? `<h3>Threshold trade-off (τ_d)</h3>
+                <div class="hint">What a different distance threshold would do on these windows (τ_c fixed): known windows accepted versus unknown windows rejected. The large dot is the τ_d used. Try another value with “Override τ_d” above — no retraining.</div>
+                <div style="height:220px;"><canvas id="tau-curve"></canvas></div>` : ''}
+
+                <h3>Every track</h3>
+                <div class="tools">
+                    <input type="text" id="trk-filter" placeholder="Search track / emitter…" oninput="drawTracks()">
+                    <select id="trk-mode" onchange="drawTracks()"><option value="all">All tracks</option><option value="wrong">Errors only</option></select>
+                    <span class="hint" id="trk-count"></span>
+                    <button class="link-btn" id="dl-tracks">Download CSV</button>
+                </div>
+                <div class="scroll"><table id="trk-table"></table></div>
+                ${d.per_track_truncated ? `<div class="hint">Showing the first ${d.per_track.length} of ${d.per_track_total} tracks.</div>` : ''}`;
+
+            // confusion matrix heat-map
+            const cm = d.confusion, cols = cm.columns;
+            document.getElementById('cm-table').innerHTML = '<tr><th>True \\ voted</th>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '<th>Flagged unknown</th><th>Tracks</th></tr>' +
+                cm.rows.map(r => `<tr><td>${escapeHtml(r.label)}${r.known ? '' : ' <span class="hint">(unknown)</span>'}</td>` + r.counts.map((n, j) => {
+                    const share = r.total ? n / r.total : 0, diag = r.known && cols[j] === r.label;
+                    const bg = n === 0 ? '' : diag ? `rgba(16,185,129,${0.15 + 0.6 * share})` : r.known ? `rgba(239,68,68,${0.15 + 0.6 * share})` : `rgba(245,158,11,${0.1 + 0.4 * share})`;
+                    return `<td class="cm" style="background:${bg}">${n || ''}</td>`;
+                }).join('') + `<td class="cm">${r.flagged}</td><td class="cm">${r.total}</td></tr>`).join('');
+
+            // τ_d trade-off
+            if (tauChart) { tauChart.destroy(); tauChart = null; }
+            if (d.tau_curve.length) {
+                const c = d.tau_curve;
+                tauChart = new Chart(document.getElementById('tau-curve').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: c.map(p => p.tau_d), datasets: [
+                        { label: 'Known windows accepted', data: c.map(p => p.known_accepted), borderColor: '#10b981', backgroundColor: '#10b981', pointRadius: c.map(p => p.current ? 7 : 2), tension: 0.2 },
+                        { label: 'Unknown windows rejected', data: c.map(p => p.unknown_rejected), borderColor: '#f59e0b', backgroundColor: '#f59e0b', pointRadius: c.map(p => p.current ? 7 : 2), tension: 0.2 } ] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { title: { display: true, text: 'τ_d' } }, y: { min: 0, max: 1 } } },
+                });
+            }
+
+            detailTracks = d.per_track;
+            drawTracks();
+            document.getElementById('dl-tracks').onclick = () => downloadCsv('test_tracks.csv',
+                ['track', 'true', 'predicted', 'verdict', 'correct', 'flagged_unknown', 'windows', 'verified_windows', 'confidence', 'distance', 'pulses'],
+                d.per_track.map(t => [t.track, t.true, t.predicted, t.verdict, t.correct, t.flagged_unknown, t.windows, t.verified_windows, t.confidence, t.distance, t.pulses]));
+            document.getElementById('dl-emitters').onclick = () => downloadCsv('test_emitters.csv',
+                ['emitter', 'tracks', 'windows', 'precision', 'recall', 'f1', 'track_accuracy', 'verified_rate', 'rejected_rate', 'mean_confidence', 'median_distance', 'confused_with'],
+                em.map(e => [e.emitter, e.tracks, e.windows, e.precision, e.recall, e.f1, e.track_accuracy, e.verified_rate, e.rejected_rate, e.mean_confidence, e.median_distance, e.confused_with]));
+        }
+
+        function drawTracks() {
+            const q = (document.getElementById('trk-filter').value || '').toLowerCase();
+            const wrongOnly = document.getElementById('trk-mode').value === 'wrong';
+            const isWrong = (t) => t.correct === false || t.flagged_unknown === false;
+            const rows = detailTracks.filter(t => (!wrongOnly || isWrong(t)) && (!q || `${t.track} ${t.true} ${t.predicted} ${t.verdict}`.toLowerCase().includes(q)));
+            document.getElementById('trk-count').innerText = `${rows.length} of ${detailTracks.length}`;
+            document.getElementById('trk-table').innerHTML = '<tr><th>Track</th><th>True</th><th>Voted class</th><th>Verdict</th><th>Result</th><th>Windows (verified)</th><th>Pulses</th><th>Conf.</th><th>Dist.</th></tr>' +
+                rows.slice(0, 1000).map(t => `<tr><td>${escapeHtml(t.track)}</td><td>${escapeHtml(t.true)}</td><td>${escapeHtml(t.predicted)}</td><td>${escapeHtml(t.verdict)}</td>
+                    <td class="${isWrong(t) ? 'bad' : 'good'}">${t.correct === null ? (t.flagged_unknown ? 'flagged ✓' : 'missed ✗') : t.correct ? 'correct ✓' : 'wrong ✗'}</td>
+                    <td>${t.windows} (${t.verified_windows})</td><td>${t.pulses}</td><td>${t.confidence}</td><td>${t.distance}</td></tr>`).join('');
+        }
+        loadSequenceModels().catch(() => {});
+
+        loadHistory();
+    </script>
+</body>
+</html>

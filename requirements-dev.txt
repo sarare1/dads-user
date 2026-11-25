@@ -1,0 +1,5 @@
+# Test and security tools (CI and local checks); not needed to run DADS.
+pytest==9.2.0
+httpx==0.28.1        # FastAPI's TestClient
+bandit==1.9.4        # static security scan of the code
+pip-audit==2.10.1    # known vulnerabilities in the pinned dependencies

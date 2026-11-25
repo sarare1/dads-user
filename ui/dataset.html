@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DADS - PhD Research Project — Dataset</title>
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/escape.js"></script>
+    <link rel="stylesheet" href="/static/shared.css">
+    <script src="/static/feature_labels.js"></script>
+    <style>
+        .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+        .feature-tile { padding: 10px 12px; }
+        .feature-tile .tile-title { font-size: 9pt; font-weight: bold; color: var(--accent-blue); }
+        .feature-tile .tile-tag { font-size: 7pt; color: #9ca3af; text-transform: uppercase; margin-left: 4px; }
+        .feature-tile .tile-stats { font-size: 8pt; color: #9ca3af; margin-top: 4px; line-height: 1.5; }
+        .quality-flag { color: var(--accent-orange); font-weight: bold; }
+        .pipeline-panel {
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .pipeline-sequence { background: rgba(124, 58, 237, 0.06); border: 1px solid rgba(124, 58, 237, 0.3); border-left: 4px solid var(--accent-purple, #7c3aed); }
+        .pipeline-label {
+            font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .pipeline-label.sequence { color: var(--accent-purple, #a78bfa); }
+        .split-banner {
+            background: #16202f; border: 1px solid var(--border-color); border-radius: 6px;
+            padding: 10px 12px; margin-bottom: 14px; font-size: 8.5pt; color: #9ca3af; line-height: 1.5;
+        }
+        .source-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 8pt;
+            font-weight: bold; text-transform: uppercase; margin-left: 8px;
+        }
+        .source-badge.sequence { background: rgba(124, 58, 237, 0.18); color: var(--accent-purple, #a78bfa); }
+        .inspector-card { border-left: 4px solid var(--border-color); transition: border-color 0.2s; }
+        .inspector-card.sequence { border-left-color: var(--accent-purple, #7c3aed); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>DADS - PhD Research Project</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-tag">DATASET</span>
+            <a href="#" onclick="logout(); return false;" class="status-tag" style="background:#374151; color:#e5e7eb; cursor:pointer; text-decoration:none;">Logout</a>
+        </div>
+    </header>
+    <nav class="top-nav">
+        <a href="/">Training</a>
+        <a href="/validation">Testing</a>
+        <a href="/inference">Inference</a>
+        <a href="/dataset" class="active">Dataset</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/live">Live Simulation</a>
+        <a href="/help">Help</a>
+    </nav>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="pipeline-panel pipeline-sequence">
+            <div class="pipeline-label sequence">⬤ Sequence Pipeline (pulse trains)</div>
+            <div class="card-title">Sequence Dataset (de-interleaved tracks)</div>
+            <div class="hint" style="margin-bottom: 8px;">Ordered pulses of one emitter per track — what a de-interleaver delivers — for training and testing the sequence models (Training page). Each track carries its family's PRI pattern and frequency agility over time. A fresh random population of radar families and held-out classes is drawn every time you click Generate. No time of arrival: only the PRI sequence. Frequency in Hz.</div>
+            <div class="form-grid">
+                <div style="grid-column: 1 / -1;"><label>Dataset name (optional)</label><input type="text" id="seq-name" placeholder="e.g. stagger_test_1 — blank = generated_&lt;date&gt;_seed&lt;n&gt;" maxlength="60"></div>
+                <div><label>Classes</label><input type="number" id="seq-num-classes" value="20" min="2" max="100"></div>
+                <div><label>Holdout Classes</label><input type="number" id="seq-holdout" value="3" min="0" max="20"></div>
+                <div><label>Tracks per Class</label><input type="number" id="seq-tracks" value="40" min="2" max="1000"></div>
+                <div><label>Pulses per Track</label><input type="number" id="seq-pulses" value="128" min="8" max="4000"></div>
+                <div><label>Missed Pulses (%)</label><input type="number" id="seq-missed" value="2" min="0" max="50" step="0.5"></div>
+                <div><label>Spurious Pulses (%)</label><input type="number" id="seq-spurious" value="2" min="0" max="50" step="0.5"></div>
+                <div><label>Noise Tracks (%)</label><input type="number" id="seq-noise" value="10" min="0" max="50"></div>
+            </div>
+            <div class="definition"><b>Classes</b>: how many distinct radar families exist in total; the model's classifier head is sized to match. <b>Holdout</b>: families never trained on, used to test open-set rejection. <b>Missed</b>: a pulse not intercepted — the next PRI becomes the sum of two intervals. <b>Spurious</b>: another emitter's pulse wrongly assigned to the track by the de-interleaver. <b>Noise tracks</b>: tracks with no coherent emitter (unknown, like held-out families) — never used to train, only to evaluate.</div>
+
+            <details style="margin-top: 10px;">
+                <summary style="cursor: pointer; color: var(--accent-blue); font-size: 9pt; font-weight: bold; text-transform: uppercase;">Advanced: Population Ranges</summary>
+                <div class="definition" style="margin-top: 8px;">Physical parameter spans the radar families are drawn from. Leave defaults to match the original ranges; narrow them for a harder/more separable task.</div>
+
+                <div class="form-grid" style="margin-top: 8px;">
+                    <div><label>Frequency Min (MHz)</label><input type="number" id="seq-range-freq-min" value="2000"></div>
+                    <div><label>Frequency Max (MHz)</label><input type="number" id="seq-range-freq-max" value="18000"></div>
+                    <div><label>Pulse Width Min (µs)</label><input type="number" id="seq-range-pw-min" value="0.5" step="0.1"></div>
+                    <div><label>Pulse Width Max (µs)</label><input type="number" id="seq-range-pw-max" value="50"></div>
+                    <div><label>PRI Min (µs)</label><input type="number" id="seq-range-pri-min" value="10"></div>
+                    <div><label>PRI Max (µs)</label><input type="number" id="seq-range-pri-max" value="1000"></div>
+                    <div><label>Rise Time Min (ns)</label><input type="number" id="seq-range-rise-min" value="5"></div>
+                    <div><label>Rise Time Max (ns)</label><input type="number" id="seq-range-rise-max" value="150"></div>
+                    <div><label>Fall Time Min (ns)</label><input type="number" id="seq-range-fall-min" value="5"></div>
+                    <div><label>Fall Time Max (ns)</label><input type="number" id="seq-range-fall-max" value="200"></div>
+                    <div><label>Bandwidth Min (Hz)</label><input type="number" id="seq-range-bw-min" value="1000000"></div>
+                    <div><label>Bandwidth Max (Hz)</label><input type="number" id="seq-range-bw-max" value="100000000"></div>
+                    <div><label>Duty Cycle Min (%)</label><input type="number" id="seq-range-duty-min" value="0.1" step="0.1" min="0.001" max="100"></div>
+                    <div><label>Duty Cycle Max (%)</label><input type="number" id="seq-range-duty-max" value="10" step="0.5" min="0.001" max="100"></div>
+                </div>
+                <div class="definition" style="margin-top: 6px;">Each family's pulse width follows from its duty cycle: PW = duty × PRI, the duty cycle drawn (log-uniformly) from this range — so a pulse is never longer than the interval between pulses. Pulse Width Min/Max still limit the result (the duty-cycle range wins if both can't hold for a family's PRI).</div>
+            </details>
+
+            <details style="margin-top: 10px;">
+                <summary style="cursor:pointer;">Extra features (your own columns)</summary>
+                <div class="definition" style="margin-top: 6px;">Add columns of your own to every generated pulse. <b>Numeric</b>: each family gets its own value between Min and Max, and its pulses scatter around it by the given noise %. <b>Categorical</b>: each family gets one of the comma-separated values. The columns sit between <code>timeBW</code> and <code>instance</code> in the file, and then appear on the Training page as features (numeric: the value and its change from pulse to pulse; categorical: the category) — so the same feature is used in Training, Testing and Inference.</div>
+                <div id="seq-extra-list"></div>
+                <button type="button" style="width:auto; padding:3px 10px; margin-top:6px;" onclick="addExtraFeature()">+ Add feature</button>
+                <div style="margin-top:10px;"><label>First capture date (part of every instance name)</label><input type="date" id="seq-capture-date"></div>
+            </details>
+
+            <label style="display:flex; align-items:center; gap:8px; margin-top: 10px;"><input type="checkbox" id="seq-pgri" checked style="width:auto; margin-top:0;"> Include PGRI (pulse groups) PRI pattern</label>
+            <div class="definition">PGRI = Pulse Group Repetition Interval: a family transmits groups of 2–8 pulses at a short intra-group PRI, then a long gap; groups repeat every PGRI. When ticked, about 1 in 7 families use it (group shape fitted so pulses within a group never overlap), in addition to constant, jittered, staggered, sliding, wobulated and dwell-and-switch. Recorded with the dataset and each model, so older datasets/models keep regenerating exactly as before.</div>
+            <button style="background: var(--accent-purple, #7c3aed); color: white;" onclick="generateSequenceDataset()">Generate Sequence Dataset</button>
+            <div id="seq-gen-status" class="hint"></div>
+            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+                <div class="card-title" style="font-size: 9pt;">Or Upload Your Own Tracks</div>
+                <div class="hint" style="margin-bottom: 8px;">One row per pulse, columns in this order: <code>Frequency</code> (MHz), <code>PW</code> (µs), <code>PRI</code> (µs), <code>Modlntype</code> (text), <code>Modlnval</code>, <code>snr</code> (dB), <code>rise</code> (ns), <code>fall</code> (ns), <code>timeBW</code> (Hz), your own extra columns, <code>instance</code> (the track: class name + capture date, text), <code>class</code> (emitter name; <code>UNKNOWN…</code> = unknown), then the bookkeeping columns <code>pulse_idx</code> (order within the track; optional) and <code>true_class_id</code> (optional; derived from <code>class</code>, −1 = unknown). Only the columns you have are needed. The first pulse of a track may have a blank PRI. Files written with the older names (<code>track_id</code>, <code>true_label</code>, <code>pri_us</code>, <code>carrier_freq_mhz</code> …) are converted on upload.</div>
+                <input type="text" id="seq-upload-name" placeholder="Dataset name (optional — default: uploaded_&lt;file name&gt;)" maxlength="60" style="margin-bottom:6px;">
+                <input type="file" id="seq-upload-file" accept=".csv">
+                <button style="background: var(--accent-purple, #7c3aed); color: white; margin-top: 8px;" onclick="uploadSequenceDataset()">Upload &amp; Use for Sequence Training</button>
+                <div id="seq-upload-status" class="hint"></div>
+            </div>
+            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+                <div class="card-title" style="font-size: 9pt;">Grow a Small Dataset into a Large One</div>
+                <div class="hint" style="margin-bottom: 8px;">Pick a stored dataset (for example your uploaded one). Every class is topped up to the number of tracks you ask for: each new track starts from one of the class's own tracks at a random point of its pulse pattern, and — when the class has several tracks — differs by the spread the class's real tracks show. No noise is added (your data is already clean). The source dataset is not changed; the result is stored as a new dataset.</div>
+                <div class="form-grid">
+                    <div style="grid-column: 1 / -1;"><label>Source dataset</label><select id="expand-source"></select></div>
+                    <div><label>Tracks per class (target)</label><input type="number" id="expand-tracks" value="200" min="2" max="5000"></div>
+                    <div><label>Pulses per track (blank = as source)</label><input type="number" id="expand-pulses" min="8" max="4000"></div>
+                    <div style="grid-column: 1 / -1;"><label>New dataset name (optional)</label><input type="text" id="expand-name" maxlength="60" placeholder="blank = &lt;source&gt;_x&lt;tracks&gt;"></div>
+                </div>
+                <button style="background: var(--accent-purple, #7c3aed); color: white; margin-top: 8px;" onclick="expandDataset()">Generate Large Dataset</button>
+                <div id="expand-status" class="hint"></div>
+            </div>
+            </div>
+
+        </div>
+
+        <div class="page-content">
+            <div class="card inspector-card" style="margin-bottom: 12px;">
+                <div class="card-title">All Datasets</div>
+                <div class="hint" style="margin-bottom:8px;">Every generated or uploaded dataset is kept under its name. <b>Training</b>, <b>Testing</b> and <b>Analytics</b> each let you choose from this list, and every trained model remembers which dataset it learned from. “Default” is what the Training page offers first. Deleting a dataset does not touch models already trained on it.</div>
+                <div id="datasets-table" class="hint">Loading…</div>
+                <div id="datasets-status" class="hint"></div>
+            </div>
+
+            <div id="inspector-summary" class="status-line" style="margin-bottom: 12px;">No dataset inspected yet — generate or upload a sequence dataset, or press View on one above.</div>
+
+            <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr; padding: 0;">
+                <div class="card inspector-card">
+                    <div class="card-title">Class Distribution</div>
+                    <div style="height:220px;"><canvas id="chart-classes"></canvas></div>
+                    <div class="definition">Pulse count per class label, including held-out (unknown) classes and unstructured noise.</div>
+                </div>
+                <div class="card inspector-card">
+                    <div class="card-title">Data Quality</div>
+                    <div id="quality-table" class="hint">—</div>
+                    <div class="definition">Per measured column: blank values, zeros, and statistical outliers (beyond 1.5×IQR). A rise/fall time of 0 means "not measured" — it's excluded from the charts, and the sequence models fill it from the track's other pulses.</div>
+                </div>
+            </div>
+
+            <div class="card inspector-card" style="margin-top: 12px;">
+                <div class="card-title">Feature Distributions</div>
+                <div class="hint" style="margin-bottom: 10px;">Every measured and derived feature at a glance — check the spread looks plausible and matches the configured generation range. Frequency, PW and PRI can exceed their configured range because operating modes scale them; held-out and noise rows are included. For per-class, log-scale and radar-specific views, open <a href="/analytics" style="color:var(--accent-blue);">Analytics →</a></div>
+                <div id="feature-tiles" class="tile-grid"></div>
+            </div>
+
+            <div class="card inspector-card" style="margin-top: 12px; border-top: 3px solid var(--accent-purple, #7c3aed);">
+                <div class="card-title">Sequence Dataset (pulse trains) <span id="seq-dataset-name" style="color: var(--accent-blue);"></span></div>
+                <div id="seq-summary" class="hint">No sequence dataset yet — generate or upload one in the Sequence Pipeline panel.</div>
+                <div id="seq-examples" style="display:none;">
+                    <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr; padding: 0; margin-top: 10px;">
+                        <div><div class="hint" style="margin-bottom:4px;"><b>PRI vs pulse number</b> — one example track per PRI pattern</div><div style="height:240px;"><canvas id="seq-chart-pri"></canvas></div></div>
+                        <div><div class="hint" style="margin-bottom:4px;"><b>Frequency vs pulse number</b> — same tracks (frequency agility)</div><div style="height:240px;"><canvas id="seq-chart-freq"></canvas></div></div>
+                    </div>
+                    <div class="definition">These patterns over time are what the sequence models learn from: a stagger cycle, a sliding ramp, a sine (wobulation), blocks (dwell-and-switch); and fixed, hopping, stepped or burst frequency. Isolated spikes are missed or spurious pulses.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chartClasses = null;
+        let tileCharts = [];
+
+        function renderBarChart(existing, canvasId, labels, values, color) {
+            if (existing) {
+                existing.data.labels = labels;
+                existing.data.datasets[0].data = values;
+                existing.update();
+                return existing;
+            }
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Count', data: values, backgroundColor: color }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+
+        async function refreshInspector(source, filename) {
+            const params = new URLSearchParams({ source: source || 'dataset' });
+            if (filename) params.set('filename', filename);
+            const resp = await fetch(`/api/dataset/inspect?${params}`);
+            const data = await resp.json();
+            if (data.status !== 'success') {
+                document.getElementById('inspector-summary').innerText = data.message || 'Inspection failed.';
+                return;
+            }
+            const badge = '<span class="source-badge sequence">Sequence Pipeline</span>';
+            const comp = data.composition;
+            const present = data.tiles.filter(t => !t.derived).map(t => featureLabel(t.feature).replace(/ \(.*\)$/, ''));
+            document.getElementById('inspector-summary').innerHTML =
+                `Dataset <b>${escapeHtml(data.filename)}</b>: ${comp.total_rows.toLocaleString()} pulses — ${comp.known_classes ?? '?'} known classes (${comp.known_rows.toLocaleString()} pulses), ` +
+                `${comp.holdout_rows.toLocaleString()} held-out, ${comp.noise_rows.toLocaleString()} noise. Measured features: ${present.map(escapeHtml).join(', ')}${badge}`;
+            document.querySelectorAll('.inspector-card').forEach(el => el.classList.add('sequence'));
+
+            chartClasses = renderBarChart(chartClasses, 'chart-classes',
+                Object.keys(data.class_counts), Object.values(data.class_counts), '#10b981');
+            renderQuality(data.quality);
+            renderTiles(data.tiles);
+        }
+
+        function renderQuality(quality) {
+            const pct = (v) => `${(v * 100).toFixed(1)}%`;
+            const rows = quality.map(q => {
+                const zeroFlag = q.zero_is_missing && q.zeros > 0;
+                return `<tr>
+                    <td>${escapeHtml(q.column)}</td>
+                    <td class="${q.missing ? 'quality-flag' : ''}">${q.missing} (${pct(q.missing_pct)})</td>
+                    <td class="${zeroFlag ? 'quality-flag' : ''}">${q.zeros} (${pct(q.zero_pct)})${zeroFlag ? ' = not measured' : ''}</td>
+                    <td>${q.outliers} (${pct(q.outlier_pct)})</td>
+                    <td>${fmtNum(q.min)} – ${fmtNum(q.max)}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('quality-table').innerHTML = `<div style="overflow-x:auto;"><table class="eda-table">
+                <thead><tr><th>Column</th><th>Blank</th><th>Zero</th><th>Outliers</th><th>Range</th></tr></thead>
+                <tbody>${rows}</tbody></table></div>`;
+        }
+
+        function renderTiles(tiles) {
+            tileCharts.forEach(c => c.destroy());
+            tileCharts = [];
+            const grid = document.getElementById('feature-tiles');
+            grid.innerHTML = tiles.map((t, i) => `<div class="card feature-tile">
+                <div class="tile-title">${escapeHtml(featureLabel(t.feature))}${t.derived ? '<span class="tile-tag">derived</span>' : ''}</div>
+                <div style="height:110px;"><canvas id="tile-${i}"></canvas></div>
+                <div class="tile-stats">
+                    min ${fmtNum(t.min)} · median ${fmtNum(t.median)} · max ${fmtNum(t.max)}<br>
+                    ${t.configured_range ? `configured ${fmtNum(t.configured_range[0])} – ${fmtNum(t.configured_range[1])} · ` : ''}${t.count} values
+                </div>
+            </div>`).join('');
+            tiles.forEach((t, i) => {
+                if (!t.histogram) return;
+                tileCharts.push(new Chart(document.getElementById(`tile-${i}`).getContext('2d'), {
+                    type: 'bar',
+                    data: { labels: t.histogram.labels, datasets: [{ data: t.histogram.counts, backgroundColor: t.derived ? '#7c3aed' : '#00d2ff', barPercentage: 1.0, categoryPercentage: 1.0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, animation: false,
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { title: (items) => items[0].label } } },
+                        scales: { x: { display: false }, y: { ticks: { font: { size: 8 }, maxTicksLimit: 4 } } } }
+                }));
+            });
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+
+        // ---------------------------------------------------------------- sequence dataset
+        let seqCharts = [];
+        const SEQ_COLORS = ["#00d2ff", "#f59e0b", "#10b981", "#ef4444", "#a78bfa", "#ec4899"];
+
+        function populationRanges() {
+            const v = (id) => parseFloat(document.getElementById(id).value);
+            return {
+                freq_min_mhz: v('seq-range-freq-min'), freq_max_mhz: v('seq-range-freq-max'),
+                pw_min_us: v('seq-range-pw-min'), pw_max_us: v('seq-range-pw-max'),
+                pri_min_us: v('seq-range-pri-min'), pri_max_us: v('seq-range-pri-max'),
+                rise_min_ns: v('seq-range-rise-min'), rise_max_ns: v('seq-range-rise-max'),
+                fall_min_ns: v('seq-range-fall-min'), fall_max_ns: v('seq-range-fall-max'),
+                bw_min_mhz: v('seq-range-bw-min') / 1e6, bw_max_mhz: v('seq-range-bw-max') / 1e6,  // the form is in Hz, the generator's range in MHz
+                duty_min_pct: v('seq-range-duty-min'), duty_max_pct: v('seq-range-duty-max'),
+            };
+        }
+
+        function renderSequenceSummary(d) {
+            const m = d.meta || {};
+            document.getElementById('seq-dataset-name').innerText = d.name ? '— ' + d.name : '';
+            const pct = (x) => x === null || x === undefined ? '—' : `${(x * 100).toFixed(1)}%`;
+            const counts = (obj) => Object.entries(obj || {}).map(([k, n]) => `${escapeHtml(k)} ${n}`).join(' · ') || '—';
+            document.getElementById('seq-summary').innerHTML = `
+                <div class="rd-kv" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 2px 18px; font-size: 9pt;">
+                    <div><span>Dataset</span> <b>${escapeHtml(d.name || m.name || '')}</b></div>
+                    <div><span>Source</span> <b>${m.source === 'uploaded' ? 'uploaded' + (m.original_filename ? ': ' + escapeHtml(m.original_filename) : '') : 'generated (seed ' + m.dataset_seed + ')'}</b></div>
+                    <div><span>Tracks</span> <b>${d.total_tracks} (${d.known_tracks} known, ${d.unknown_tracks} unknown)</b></div>
+                    <div><span>Pulses</span> <b>${d.total_pulses.toLocaleString()}</b></div>
+                    <div><span>Known classes</span> <b>${d.known_classes}</b></div>
+                    <div><span>Pulses per track</span> <b>${d.pulses_per_track.min}–${d.pulses_per_track.max} (median ${d.pulses_per_track.median})</b></div>
+                    <div><span>Missed / spurious pulses</span> <b>${pct(m.missed_pct)} / ${pct(m.spurious_pct)}${d.spurious_pulses !== null ? ` (${d.spurious_pulses} spurious)` : ''}</b></div>
+                </div>
+                <div class="hint" style="margin-top:6px;"><b>Tracks per PRI pattern:</b> ${counts(d.pri_patterns)}</div>
+                <div class="hint"><b>Tracks per frequency agility:</b> ${counts(d.freq_agility)}</div>
+                ${(d.extra_feature_columns || []).length ? `<div class="hint" style="color: var(--accent-orange);"><b>Extra columns usable as sequence features:</b> ${d.extra_feature_columns.map(escapeHtml).join(', ')} — selectable on the Training page (value and Δ). The simulator can't produce them, so models using them are tested on track files.</div>` : ''}
+                <div class="hint" style="margin-top:4px;"><a href="/api/sequence/dataset/download?name=${encodeURIComponent(d.name || '')}" style="color:var(--accent-blue);">⬇ Download sequence dataset (CSV)</a></div>`;
+            seqCharts.forEach(c => c.destroy()); seqCharts = [];
+            const ex = d.examples || [];
+            document.getElementById('seq-examples').style.display = ex.length ? '' : 'none';
+            if (!ex.length) return;
+            const line = (canvas, key, scale, title) => seqCharts.push(new Chart(document.getElementById(canvas).getContext('2d'), {
+                type: 'line',
+                data: { datasets: ex.map((e, i) => ({
+                    label: `${e.pri_pattern} / ${e.freq_agility || '—'} (${e.label})`,
+                    data: e[key].map((v, j) => ({ x: j, y: v === null ? null : v / scale })),
+                    borderColor: SEQ_COLORS[i % SEQ_COLORS.length], backgroundColor: SEQ_COLORS[i % SEQ_COLORS.length],
+                    pointRadius: 1.5, borderWidth: 1.2, tension: 0, spanGaps: false })) },
+                options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+                    plugins: { legend: { labels: { boxWidth: 10, font: { size: 9 } } } },
+                    scales: { x: { type: 'linear', title: { display: true, text: 'Pulse number in track' } },
+                              y: { type: key === 'pri_us' ? 'logarithmic' : 'linear', title: { display: true, text: title } } } },
+            }));
+            line('seq-chart-pri', 'pri_us', 1, 'PRI (µs, log scale)');
+            line('seq-chart-freq', 'freq_mhz', 1, 'Frequency (MHz)');
+        }
+
+        let viewedDataset = null;
+        let datasetList = [];
+        const jsArg = (name) => JSON.stringify(name).replace(/"/g, '&quot;');
+
+        async function viewDataset(name) {
+            viewedDataset = name;
+            const resp = await fetch('/api/sequence/dataset?name=' + encodeURIComponent(name));
+            if (resp.ok) renderSequenceSummary(await resp.json());
+            await refreshInspector('dataset', name);
+            renderDatasetTable();
+        }
+
+        async function loadDatasets(viewName) {
+            const data = await (await fetch('/api/datasets')).json();
+            datasetList = data.datasets || [];
+            fillExpandSources();
+            const target = viewName || (datasetList.some(d => d.name === viewedDataset) ? viewedDataset : data.active);
+            if (target) await viewDataset(target);
+            else {
+                renderDatasetTable();
+                document.getElementById('seq-summary').innerText = 'No sequence dataset yet — generate or upload one in the Sequence Pipeline panel.';
+            }
+        }
+
+        function renderDatasetTable() {
+            const el = document.getElementById('datasets-table');
+            if (!datasetList.length) { el.innerText = 'No datasets yet — generate or upload one on the left.'; return; }
+            const size = (b) => b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB';
+            el.innerHTML = `<div style="overflow-x:auto;"><table class="eda-table"><thead><tr><th style="text-align:left;">Name</th><th>Kind</th><th>Tracks</th><th>Pulses</th><th>Size</th><th>Created</th><th>Models trained on it</th><th></th></tr></thead><tbody>` +
+                datasetList.map(d => `<tr${d.name === viewedDataset ? ' style="background:rgba(0,210,255,0.08);"' : ''}>
+                    <td style="text-align:left;"><b title="${d.sha256 ? 'SHA-256 ' + escapeHtml(d.sha256) : ''}">${escapeHtml(d.name)}</b>${d.sha256 ? ` <span class="hint" title="SHA-256 of the stored CSV — training runs record it">${escapeHtml(d.sha256.slice(0, 8))}</span>` : ''}${d.is_active ? ' <span class="source-badge sequence" style="margin-left:4px;">default</span>' : ''}${d.name === viewedDataset ? ' <span class="hint">(viewing)</span>' : ''}</td>
+                    <td>${escapeHtml(d.kind)}</td><td>${d.tracks ?? '—'}</td><td>${d.pulses?.toLocaleString() ?? '—'}</td><td>${size(d.size_bytes)}</td><td>${escapeHtml(d.created)}</td>
+                    <td>${d.used_by_models.length ? d.used_by_models.map(i => '#' + i).join(', ') : '—'}</td>
+                    <td style="white-space:nowrap;">
+                        <button style="width:auto; padding:3px 9px; margin:0 2px;" onclick="viewDataset(${jsArg(d.name)})">View</button>
+                        ${d.is_active ? '' : `<button style="width:auto; padding:3px 9px; margin:0 2px;" onclick="activateDataset(${jsArg(d.name)})">Make default</button>`}
+                        <a href="/api/sequence/dataset/download?name=${encodeURIComponent(d.name)}" style="color:var(--accent-blue); margin:0 4px;" title="Download CSV">⬇</a>
+                        <button style="width:auto; padding:3px 9px; margin:0 2px; background:#7f1d1d;" onclick="deleteDataset(${jsArg(d.name)})">Delete</button>
+                    </td></tr>`).join('') + '</tbody></table></div>';
+        }
+
+        async function activateDataset(name) {
+            const data = await (await fetch('/api/datasets/' + encodeURIComponent(name) + '/activate', { method: 'POST' })).json();
+            document.getElementById('datasets-status').innerText = data.message || '';
+            await loadDatasets(viewedDataset);
+        }
+
+        async function deleteDataset(name) {
+            const d = datasetList.find(x => x.name === name);
+            const used = d && d.used_by_models.length ? `\n\nModels ${d.used_by_models.map(i => '#' + i).join(', ')} were trained on it; they keep working, and Analytics can regenerate a generated dataset from its seed.` : '';
+            if (!confirm(`Delete dataset '${name}'? This cannot be undone. The name '${name}' is retired: no other dataset will ever get it.${used}`)) return;
+            const data = await (await fetch('/api/datasets/' + encodeURIComponent(name), { method: 'DELETE' })).json();
+            document.getElementById('datasets-status').innerText = data.message || '';
+            if (viewedDataset === name) viewedDataset = null;
+            await loadDatasets();
+        }
+
+        function addExtraFeature() {
+            const row = document.createElement('div');
+            row.className = 'extra-feature';
+            row.style.cssText = 'display:grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 0.8fr auto; gap:4px; margin-top:6px; align-items:end;';
+            row.innerHTML = `<div><label>Name</label><input type="text" class="ef-name" maxlength="40" placeholder="e.g. Power"></div>
+                <div><label>Kind</label><select class="ef-kind" onchange="extraKindChanged(this)"><option value="numeric">numeric</option><option value="categorical">categorical</option></select></div>
+                <div class="ef-num"><label>Min</label><input type="number" class="ef-min" value="0" step="any"></div>
+                <div class="ef-num"><label>Max</label><input type="number" class="ef-max" value="10" step="any"></div>
+                <div class="ef-num"><label>Noise %</label><input type="number" class="ef-noise" value="2" min="0" max="100" step="0.5"></div>
+                <div class="ef-cat" style="display:none; grid-column: 3 / 6;"><label>Values (comma-separated)</label><input type="text" class="ef-values" placeholder="e.g. ship, air, land"></div>
+                <button type="button" style="width:auto; padding:3px 9px; background:#7f1d1d;" onclick="this.parentElement.remove()">✕</button>`;
+            document.getElementById('seq-extra-list').appendChild(row);
+        }
+
+        function extraKindChanged(sel) {
+            const row = sel.closest('.extra-feature');
+            const cat = sel.value === 'categorical';
+            row.querySelectorAll('.ef-num').forEach(e => e.style.display = cat ? 'none' : '');
+            row.querySelector('.ef-cat').style.display = cat ? '' : 'none';
+        }
+
+        function collectExtraFeatures() {
+            return [...document.querySelectorAll('#seq-extra-list .extra-feature')].map(row => {
+                const kind = row.querySelector('.ef-kind').value;
+                const f = { name: row.querySelector('.ef-name').value.trim(), kind };
+                if (kind === 'numeric') {
+                    f.min = parseFloat(row.querySelector('.ef-min').value);
+                    f.max = parseFloat(row.querySelector('.ef-max').value);
+                    f.noise_pct = parseFloat(row.querySelector('.ef-noise').value) || 0;
+                } else {
+                    f.values = row.querySelector('.ef-values').value.split(',').map(v => v.trim()).filter(Boolean);
+                }
+                return f;
+            });
+        }
+
+        function fillExpandSources() {
+            const sel = document.getElementById('expand-source');
+            const keep = sel.value;
+            sel.innerHTML = datasetList.map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${d.tracks ?? '?'} tracks)</option>`).join('');
+            if (keep && datasetList.some(d => d.name === keep)) sel.value = keep;
+            else if (viewedDataset) sel.value = viewedDataset;
+        }
+
+        async function expandDataset() {
+            const statusEl = document.getElementById('expand-status');
+            const source = document.getElementById('expand-source').value;
+            if (!source) { statusEl.innerText = 'No dataset to expand — generate or upload one first.'; return; }
+            statusEl.innerText = 'Generating...';
+            const pulses = parseInt(document.getElementById('expand-pulses').value);
+            const payload = { source, tracks_per_class: parseInt(document.getElementById('expand-tracks').value) || 200,
+                              pulses_per_track: pulses > 0 ? pulses : null, name: document.getElementById('expand-name').value.trim() || null };
+            let data;
+            try {
+                const resp = await fetch('/api/sequence/dataset/expand', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+                const text = await resp.text();
+                try { data = JSON.parse(text); } catch { data = { status: 'error', message: `Server error ${resp.status}` }; }
+            } catch (e) { data = { status: 'error', message: 'Request failed: ' + e.message }; }
+            statusEl.innerText = data.message || 'Failed.';
+            if (data.status === 'success') await loadDatasets(data.name);
+        }
+
+        async function generateSequenceDataset() {
+            const statusEl = document.getElementById('seq-gen-status');
+            statusEl.innerText = 'Generating...';
+            const payload = {
+                num_classes: parseInt(document.getElementById('seq-num-classes').value) || 20,
+                num_holdout_classes: parseInt(document.getElementById('seq-holdout').value) || 0,
+                tracks_per_class: parseInt(document.getElementById('seq-tracks').value) || 40,
+                pulses_per_track: parseInt(document.getElementById('seq-pulses').value) || 128,
+                missed_pct: (parseFloat(document.getElementById('seq-missed').value) || 0) / 100,
+                spurious_pct: (parseFloat(document.getElementById('seq-spurious').value) || 0) / 100,
+                noise_track_pct: (parseFloat(document.getElementById('seq-noise').value) || 0) / 100,
+                include_pgri: document.getElementById('seq-pgri').checked,
+                extra_features: collectExtraFeatures(),
+                capture_date: document.getElementById('seq-capture-date').value || null,
+                name: document.getElementById('seq-name').value.trim() || null,
+                ranges: populationRanges(),
+            };
+            const resp = await fetch('/api/sequence/dataset/generate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+            const data = await resp.json();
+            statusEl.innerText = data.message || (data.status === 'success' ? 'Done.' : 'Failed.');
+            if (data.status === 'success') await loadDatasets(data.name);
+        }
+
+        async function uploadSequenceDataset() {
+            const statusEl = document.getElementById('seq-upload-status');
+            const file = document.getElementById('seq-upload-file').files[0];
+            if (!file) { statusEl.innerText = 'Choose a CSV file first.'; return; }
+            statusEl.innerText = 'Uploading...';
+            const fd = new FormData(); fd.append('file', file);
+            const wanted = document.getElementById('seq-upload-name').value.trim();
+            if (wanted) fd.append('name', wanted);
+            let data;
+            try {
+                const resp = await fetch('/api/sequence/dataset/upload', { method: 'POST', body: fd });
+                const text = await resp.text();
+                try { data = JSON.parse(text); }
+                catch { data = { status: 'error', message: `Server error ${resp.status}: ${text.slice(0, 300) || 'empty response'}` }; }
+            } catch (e) {
+                data = { status: 'error', message: 'Upload failed: ' + e.message };
+            }
+            statusEl.innerText = data.message || 'Failed.';
+            if (data.status === 'success') await loadDatasets(data.name);
+        }
+
+        loadDatasets().catch(() => {});
+    </script>
+</body>
+</html>

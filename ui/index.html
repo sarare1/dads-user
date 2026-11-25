@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DADS - PhD Research Project — Training</title>
+    <link rel="stylesheet" href="/static/shared.css">
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/escape.js"></script>
+    <script src="/static/run_details.js"></script>
+    <style>
+        table.history { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 10px; }
+        table.history th, table.history td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        table.history th { color: var(--accent-blue); text-transform: uppercase; font-size: 8pt; }
+        table.history tr.run-row { cursor: pointer; }
+        table.history tr.run-row:hover { background: #16202f; }
+        table.history tr.active-run { box-shadow: inset 3px 0 0 var(--accent-green); }
+        .saved-name { color: #fbbf24; font-weight: bold; }
+        .inuse-tag { color: #34d399; font-size: 7.5pt; font-weight: bold; margin-left: 4px; }
+        .seq-tag { color: #c4b5fd; font-weight: bold; white-space: nowrap; }
+        .delete-run-btn { width: auto; margin-top: 0; padding: 3px 8px; font-size: 8pt; background: #b91c1c; color: white; white-space: nowrap; }
+        .feature-option { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; color: #e5e7eb; }
+        .feature-option input { width: auto; margin-top: 2px; }
+        .feature-option.unavailable { opacity: 0.45; }
+        .feature-tag { font-size: 7pt; padding: 1px 5px; border-radius: 3px; margin-left: 4px; text-transform: uppercase; }
+        .feature-tag.dataset { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>DADS - PhD Research Project</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-tag">TRAINING</span>
+            <a href="#" onclick="logout(); return false;" class="status-tag" style="background:#374151; color:#e5e7eb; cursor:pointer; text-decoration:none;">Logout</a>
+        </div>
+    </header>
+    <nav class="top-nav">
+        <a href="/" class="active">Training</a>
+        <a href="/validation">Testing</a>
+        <a href="/inference">Inference</a>
+        <a href="/dataset">Dataset</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/live">Live Simulation</a>
+        <a href="/help">Help</a>
+    </nav>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="card-title">Shared Training Settings</div>
+
+            <label>Embedding Distance Metric</label>
+            <select id="cfg-metric">
+                <option value="cosine" selected>Cosine Distance</option>
+                <option value="euclidean">Euclidean Distance (L2)</option>
+            </select>
+            <div class="definition">How “far apart” two embeddings are. It is used in two places, nothing else: (1) the <b>triplet loss</b> while training pulls windows of the same family together and pushes different families apart by this distance; (2) afterwards, a window's <b>distance to its nearest class prototype</b> is measured the same way and compared with τ_d to decide “known” or “unknown”. It is plain arithmetic on the model's output vectors. Cosine is the usual choice; euclidean picks the same nearest prototype (the vectors have length 1) but on a different distance scale, so τ_d must be chosen to match. (Runs from before v1.2.0 may show “dot”: that was always computed as cosine.)</div>
+
+            <div class="card-title" style="margin-top: 20px;">Hyperparameters</div>
+
+            <label>Learning Rate: <span id="val-lr">0.001</span></label>
+            <input type="range" id="cfg-lr" min="0.0001" max="0.01" step="0.0001" value="0.001">
+
+            <label>Triplet Margin (α): <span id="val-margin">0.50</span></label>
+            <input type="range" id="cfg-margin" min="0.1" max="1.0" step="0.05" value="0.5">
+
+            <label>Min Classifier Confidence: <span id="val-cls-thresh">0.88</span></label>
+            <input type="range" id="cfg-cls-thresh" min="0.5" max="0.99" step="0.01" value="0.88">
+
+            <label>OOD Distance Threshold: <span id="val-ood-thresh">0.42</span></label>
+            <input type="range" id="cfg-ood-thresh" min="0.1" max="1.0" step="0.01" value="0.42">
+
+            <div class="card-title" style="margin-top: 20px;">Reciprocal Points (RPL / ARPL)</div>
+
+            <label>RPL Loss Weight: <span id="val-rpl-weight">0.10</span></label>
+            <input type="range" id="cfg-rpl-weight" min="0.01" max="1.0" step="0.01" value="0.1">
+            <div class="definition">How strongly the auxiliary RPL open-set objective shapes the shared embedding space during training, relative to the primary classifier + triplet losses. Higher lets RPL converge faster but risks pulling the embedding space away from what the primary threshold method wants.</div>
+
+            <label style="display:flex; align-items:center; gap: 8px; margin-top: 12px;">
+                <input type="checkbox" id="cfg-rpl-adversarial" style="width:auto; margin-top:0;">
+                Enable Adversarial Training (full ARPL)
+            </label>
+            <div class="definition">Adds a generator network that adversarially synthesizes "confusing" embeddings targeting each known class, trained alongside the classifier in a min-max game — the classifier learns to keep rejecting them as open-space even as the generator tries to make them pass. Tightens RPL's decision boundaries beyond the passive open-space margin loss alone, at the cost of a less stable, sometimes slower-converging training run. Off by default (plain RPL) — turn on for a genuine RPL-vs-ARPL comparison across two training runs.</div>
+
+            <button onclick="applyConfiguration()">Apply Configuration</button>
+            <div class="hint">Applies to the next training run; trained models are unaffected. Backbone, window, features and embedding size are chosen in the Sequence Model card. See <a href="/help" style="color:var(--accent-blue);">Help</a> for what each field means.</div>
+        </div>
+
+        <div class="page-content">
+            <div class="card" style="max-width: 900px; border-top: 3px solid var(--accent-purple, #7c3aed);">
+                <div class="card-title">Sequence Model — classify a de-interleaved pulse train</div>
+                <div class="hint" style="margin-bottom: 10px;">Classifies a window of <b>k consecutive pulses of one emitter</b>, so it can use the PRI pattern (ΔPRI) and frequency agility (Δfrequency) over time. Trains on the <b>Sequence Dataset</b> (<a href="/dataset" style="color:var(--accent-blue);">Dataset page</a> → Sequence Pipeline). Uses the Hyperparameters, Distance Metric and RPL settings from the form on the left. Every run appears in Run History for comparison. Test it on the Testing page.</div>
+                <label>Training Dataset</label>
+                <select id="seq-dataset" onchange="loadSequenceOptions()"></select>
+                <div id="seq-dataset-status" class="status-line" style="margin: 6px 0 10px;">Loading…</div>
+                <div class="form-grid" style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px;">
+                    <div><label>Sequence Backbone</label><select id="seq-backbone"></select></div>
+                    <div><label>Input</label><select id="seq-window-mode" onchange="seqWindowModeChanged()"><option value="windows">Windows of k pulses</option><option value="track">Whole track (first N pulses)</option></select></div>
+                    <div><label id="seq-window-label">Window k (pulses)</label><input type="number" id="seq-window" value="32" min="2" max="512"></div>
+                    <div><label>Epochs</label><input type="number" id="seq-epochs" value="20" min="1" max="500"></div>
+                    <div><label>Embedding Size (d)</label><select id="seq-embed-dim"><option value="8">8</option><option value="16">16</option><option value="32">32</option><option value="64">64</option><option value="128" selected>128 (default)</option><option value="256">256</option></select></div>
+                </div>
+                <label style="margin-top: 10px;">Per-pulse Input Features</label>
+                <div id="seq-feature-options" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0 12px;"></div>
+                <div id="seq-extra-hint" class="hint" style="color: var(--accent-orange);"></div>
+                <div class="definition">Δ features are differences to the previous pulse of the same track (ΔPRI exposes stagger / sliding / jitter; Δfrequency exposes agility; ΔPW mostly marks mode switches). Frequency is in MHz and bandwidth in Hz in the files (the model is fed Hz and MHz respectively). Modulation type and your own text columns are fed as numbers (one value per category). Each feature is standardized (x − μ)/σ on the training tracks.</div>
+                <label style="margin-top: 10px;">Data Split &amp; Cross-validation</label>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <div><label>Test split (% of tracks)</label><input type="number" id="seq-test-pct" value="20" min="0" max="50" step="1"></div>
+                    <div><label>Folds</label><input type="number" id="seq-cv-folds" value="4" min="2" max="10"></div>
+                    <div><label>Cross-validation</label><select id="seq-cv-mode"><option value="on" selected>On — train every fold</option><option value="off">Off — fold 1 only</option></select></div>
+                </div>
+                <label style="display:flex; align-items:center; gap:8px; margin-top: 8px;"><input type="checkbox" id="seq-include-test" style="width:auto; margin-top:0;"> Also train on the test split</label>
+                <div class="definition">Per class (never per pulse), <b>Test split</b> % of the tracks are set aside and kept for the <a href="/validation" style="color:var(--accent-blue);">Testing page</a>. The rest is cut into <b>Folds</b> equal buckets; fold <i>f</i> validates on bucket <i>f</i> and trains on the others, so every track validates once — with 20 % test and 4 folds that is 20:20:20:20:20, three buckets training, one validating, the fifth the untouched test split. The model of the fold with the highest validation accuracy is kept; the run's accuracy and AUROC are the <b>mean over the folds</b> (± std) — the kept fold's own score is the best of several and would overstate it. Training takes about <i>folds</i> × as long. Tick <b>Also train on the test split</b> to use those tracks for training too (e.g. a final model) — the Testing page then marks the split as <i>not independent</i>.</div>
+                <label style="margin-top: 10px;">Decision Thresholds (this sequence model's own)</label>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <div><label>Min classifier confidence τ_c</label><input type="number" id="seq-tau-c" value="0.88" min="0.01" max="0.99" step="0.01"></div>
+                    <div><label>Distance threshold τ_d</label>
+                        <select id="seq-tau-d-mode" onchange="document.getElementById('seq-tau-d-wrap').style.display = this.value === 'manual' ? '' : 'none'; document.getElementById('seq-cov-wrap').style.display = this.value === 'auto' ? '' : 'none';">
+                            <option value="auto" selected>Auto — calibrate on held-out known tracks</option>
+                            <option value="manual">Manual value</option>
+                        </select></div>
+                    <div id="seq-cov-wrap"><label>Known windows accepted (%)</label><input type="number" id="seq-coverage" value="95" min="50" max="99.9" step="0.5"></div>
+                    <div id="seq-tau-d-wrap" style="display:none;"><label>τ_d value</label><input type="number" id="seq-tau-d" value="0.3" min="0.001" step="0.01"></div>
+                </div>
+                <div class="definition">Each sequence model gets its own thresholds. <b>Auto</b> sets τ_d so that the chosen share of <i>known</i> validation windows lie within it of their nearest prototype — calibrated on known data only (no unknown tracks involved), so the open-set results stay honest. Lower % = stricter (more unknowns caught, more known windows rejected). The chosen values are stored with the run; Testing can try others without retraining.</div>
+                <button id="seq-train-btn" style="background: var(--accent-purple); color: white;" onclick="trainSequenceModel()">Train Sequence Model</button>
+                <button id="seq-stop-btn" style="display:none; background:#b91c1c; color:white;" onclick="stopTraining('seq-stop-btn')">&#9632; Stop training</button>
+                <div id="seq-train-status" class="status-line"></div>
+            </div>
+
+            <div class="card" style="max-width: 900px; margin-top: 20px; border-top: 3px solid var(--accent-orange, #f59e0b);">
+                <div class="card-title">Add New Families — Incremental Training</div>
+                <div class="hint" style="margin-bottom: 10px;">A deployed model meets an emitter family it was never trained on (it flags it as unknown). Once its tracks are labelled, teach the model the new family <b>without starting from nothing</b>. Each method below makes a new model (a child of the base model, shown as “← #base” in Run History); the base model is never changed. All methods are scored on the same held-out tracks: the base model's own validation tracks (did it forget the old families?), a share of the new family's tracks (did it learn the new one?) and unknown tracks (does it still reject what it doesn't know?).</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><label>Base model</label><select id="inc-base" onchange="incBaseChanged()"></select></div>
+                    <div><label>New-family data (labelled tracks)</label><select id="inc-dataset"></select></div>
+                </div>
+                <div id="inc-base-info" class="hint" style="margin-top:4px;"></div>
+                <details style="margin-top: 8px;">
+                    <summary style="cursor:pointer; color: var(--accent-blue); font-size: 9pt; font-weight: bold;">Simulate new-family data for this base model</summary>
+                    <div class="hint" style="margin: 6px 0;">Fresh tracks of families the base model was trained <i>without</i> (its held-out families, from the same simulated population), labelled with their names — plus the remaining held-out families and noise as unknown tracks. Stored as a new dataset. With your own data, upload the new family's labelled tracks on the Dataset page instead (families are matched by their <code>true_label</code> name).</div>
+                    <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; align-items: end;">
+                        <div><label>Families still unknown to the base model</label><div id="inc-families" class="hint">—</div></div>
+                        <div><label>Tracks per family</label><input type="number" id="inc-fam-tracks" value="30" min="4" max="1000"></div>
+                        <div><button style="background:#374151; color:white;" onclick="generateNewFamilies()">Generate</button></div>
+                    </div>
+                    <div id="inc-gen-status" class="hint"></div>
+                </details>
+                <label style="margin-top: 10px;">Methods to run and compare</label>
+                <div id="inc-methods" style="display:grid; grid-template-columns: 1fr 1fr; gap: 2px 14px;"></div>
+                <div class="definition"><b>A</b> — the new family's classifier row is set to the average feature of its tracks and its prototypes are added; nothing is trained, no old data needed, old rows and thresholds untouched (but the new row competes with them). <b>B</b> — a few epochs from the base weights on the new tracks <i>plus a small replay buffer</i> of stored tracks of every old family; prototypes recomputed and τ_d recalibrated. <b>C</b> — a few epochs on the new tracks only; the base model is kept as a “teacher” and the new model must keep its outputs on the old families and its embeddings (distillation, Learning without Forgetting); old families' prototypes can only be kept from the base model. <b>D</b> — everything retrained from scratch on all old training tracks plus the new tracks: the reference the others are measured against.</div>
+                <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 8px;">
+                    <div><label>Fine-tune epochs (B, C)</label><input type="number" id="inc-ft-epochs" value="20" min="1" max="200"></div>
+                    <div><label>Full retrain epochs (D)</label><input type="number" id="inc-full-epochs" placeholder="as base" min="1" max="500"></div>
+                    <div><label>Replay tracks / old family (B)</label><input type="number" id="inc-replay" value="10" min="0" max="1000"></div>
+                    <div><label>Learning-rate × (B, C)</label><input type="number" id="inc-lr" value="0.5" min="0.01" max="2" step="0.05"></div>
+                    <div><label>New tracks kept for scoring (%)</label><input type="number" id="inc-eval" value="30" min="10" max="60"></div>
+                </div>
+                <button id="inc-btn" style="background: var(--accent-orange, #f59e0b); color: #111;" onclick="runIncremental()">Run Incremental Training</button>
+                <button id="inc-stop-btn" style="display:none; background:#b91c1c; color:white;" onclick="stopTraining('inc-stop-btn')">&#9632; Stop training</button>
+                <div id="inc-status" class="status-line"></div>
+                <div id="inc-results" style="margin-top: 10px;"></div>
+                <details style="margin-top: 10px;">
+                    <summary style="cursor:pointer; color: var(--accent-blue); font-size: 9pt; font-weight: bold;">Earlier comparisons</summary>
+                    <div id="inc-history" class="hint" style="margin-top: 6px;">—</div>
+                </details>
+            </div>
+
+            <div class="card" style="max-width: 900px; margin-top: 20px;">
+                <div class="card-title">Run History — Compare Configurations</div>
+                <div id="history-summary" class="hint">Loading...</div>
+                <div style="overflow-x: auto;">
+                    <table class="history" id="history-table"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('cfg-lr').oninput = (e) => document.getElementById('val-lr').innerText = e.target.value;
+        document.getElementById('cfg-margin').oninput = (e) => document.getElementById('val-margin').innerText = e.target.value;
+        document.getElementById('cfg-cls-thresh').oninput = (e) => document.getElementById('val-cls-thresh').innerText = e.target.value;
+        document.getElementById('cfg-ood-thresh').oninput = (e) => document.getElementById('val-ood-thresh').innerText = e.target.value;
+        document.getElementById('cfg-rpl-weight').oninput = (e) => document.getElementById('val-rpl-weight').innerText = e.target.value;
+
+        async function loadConfigIntoForm() {
+            // The config form is static HTML with hardcoded default values — without this,
+            // it always shows those defaults regardless of the server's real current config
+            // (e.g. after a restart, or a change made from another tab/session), so what you
+            // see selected here could silently disagree with what Train Model actually uses.
+            const cfg = await (await fetch('/api/config')).json();
+            const embSel = document.getElementById('seq-embed-dim');
+            const embDim = String(cfg.model.embedding_dim || 128);
+            if (![...embSel.options].some(o => o.value === embDim)) embSel.add(new Option(embDim, embDim));
+            embSel.value = embDim;
+            document.getElementById('cfg-metric').value = cfg.hyperparameters.distance_metric;
+
+            document.getElementById('cfg-lr').value = cfg.hyperparameters.learning_rate;
+            document.getElementById('val-lr').innerText = cfg.hyperparameters.learning_rate;
+            document.getElementById('cfg-margin').value = cfg.hyperparameters.triplet_margin;
+            document.getElementById('val-margin').innerText = cfg.hyperparameters.triplet_margin;
+            document.getElementById('cfg-cls-thresh').value = cfg.hyperparameters.classifier_confidence_threshold;
+            document.getElementById('val-cls-thresh').innerText = cfg.hyperparameters.classifier_confidence_threshold;
+            document.getElementById('cfg-ood-thresh').value = cfg.hyperparameters.ood_distance_threshold;
+            document.getElementById('val-ood-thresh').innerText = cfg.hyperparameters.ood_distance_threshold;
+            document.getElementById('cfg-rpl-weight').value = cfg.hyperparameters.rpl_loss_weight;
+            document.getElementById('val-rpl-weight').innerText = cfg.hyperparameters.rpl_loss_weight;
+            document.getElementById('cfg-rpl-adversarial').checked = !!cfg.hyperparameters.rpl_adversarial;
+
+        }
+
+        async function applyConfiguration(silent) {
+            const payload = {
+                embedding_dim: parseInt(document.getElementById('seq-embed-dim').value) || 128,
+                learning_rate: parseFloat(document.getElementById('cfg-lr').value),
+                triplet_margin: parseFloat(document.getElementById('cfg-margin').value),
+                classifier_confidence_threshold: parseFloat(document.getElementById('cfg-cls-thresh').value),
+                ood_distance_threshold: parseFloat(document.getElementById('cfg-ood-thresh').value),
+                distance_metric: document.getElementById('cfg-metric').value,
+                rpl_loss_weight: parseFloat(document.getElementById('cfg-rpl-weight').value),
+                rpl_adversarial: document.getElementById('cfg-rpl-adversarial').checked
+            };
+            const data = await fetchJson('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }, 20000);
+            if (!silent || data.status === 'error') alert(data.message || "Configuration saved.");
+            return data;
+        }
+
+        async function loadHistory() {
+            const resp = await fetch('/api/train/history');
+            const data = await resp.json();
+            const runs = data.runs || [];
+            historyRuns = runs;
+
+            if (runs.length === 0) {
+                document.getElementById('history-summary').innerText = 'No training runs yet.';
+                document.getElementById('history-table').innerHTML = '';
+                return;
+            }
+
+            const savedCount = runs.filter(r => r.saved_name).length;
+            document.getElementById('history-summary').innerText =
+                `${runs.length} run(s) recorded, ${savedCount} saved. Double-click a run for its full details, evaluation, formulas and weights — and to save, use or download its model. ● = sequence model currently in use.`;
+
+            const table = document.getElementById('history-table');
+            const headers = ['Run', 'Window k', 'Saved Model', 'Timestamp (IST)', 'Dataset', 'Backbone', 'Emb. d', 'Features', 'Distance', 'Epochs', 'Holdout', 'Dataset Seed', 'Accuracy', 'AUROC (Threshold)', 'AUROC (RPL/ARPL)', ''];
+            let html = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+            for (const r of runs) {
+                const rplLabel = r.open_set_auroc_rpl !== null && r.open_set_auroc_rpl !== undefined
+                    ? `${Number(r.open_set_auroc_rpl).toFixed(3)} (${r.rpl_adversarial ? 'ARPL' : 'RPL'})` : 'N/A';
+                const saved = r.saved_name
+                    ? `<span class="saved-name">★ ${r.saved_name}</span>`
+                    : (r.has_model ? '<span class="hint">not saved</span>' : '<span class="hint">—</span>');
+                html += `<tr class="run-row${r.is_active ? ' active-run' : ''}" ondblclick="openRunDetails(${r.id})" title="Double-click for full details, evaluation and explainability">
+                    <td>#${r.id}${r.parent_run_id ? `<span class="hint" title="Incremental training from run #${r.parent_run_id}, method ${r.incremental_method}"> ← #${r.parent_run_id} (${r.incremental_method})</span>` : ''}${r.is_active ? '<span class="inuse-tag">● in use</span>' : ''}</td>
+                    <td><span class="seq-tag">${r.window_mode === 'track' ? 'track ≤' + r.window_k : 'k=' + r.window_k}</span></td>
+                    <td>${saved}</td>
+                    <td>${r.timestamp_ist}</td>
+                    <td>${r.dataset_name ? escapeHtml(r.dataset_name) : '<span class="hint">seed ' + (r.dataset_seed ?? '?') + ' (unnamed)</span>'}</td>
+                    <td>${r.backbone_type}</td>
+                    <td>${r.embedding_dim || 128}</td>
+                    <td>${r.features ? r.features.split(',').map(n => escapeHtml(seqLabel(n))).join(', ') : 'N/A'}</td>
+                    <td>${r.distance_metric}</td>
+                    <td>${r.epochs}</td>
+                    <td>${r.num_holdout_classes}</td>
+                    <td>${r.dataset_seed ?? 'N/A'}</td>
+                    <td>${(r.closed_set_accuracy * 100).toFixed(1)}%${r.cv_folds > 1 && r.cv_accuracy_mean !== null && r.cv_accuracy_mean !== undefined ? `<div class="hint" title="Mean validation accuracy over ${r.cv_folds} folds (runs before the fix showed the kept fold's own, optimistic, score)">± ${(r.cv_accuracy_std * 100).toFixed(1)}% over ${r.cv_folds} folds</div>` : ''}</td>
+                    <td>${r.open_set_auroc !== null ? Number(r.open_set_auroc).toFixed(3) : 'N/A'}</td>
+                    <td>${rplLabel}</td>
+                    <td><button class="delete-run-btn" title="Delete this run and its model" ondblclick="event.stopPropagation()" onclick="event.stopPropagation(); deleteRunRow(${r.id})">🗑 Delete</button></td>
+                </tr>`;
+            }
+            table.innerHTML = html;
+        }
+
+        // Window mode: "windows" = overlapping windows of k pulses voted per track; "track" = one input per track
+        // (its first N pulses, N = cap, 0 = no cap up to 512; shorter tracks are padded and masked).
+        function seqWindowModeChanged() {
+            const track = document.getElementById('seq-window-mode').value === 'track';
+            const inp = document.getElementById('seq-window');
+            document.getElementById('seq-window-label').innerText = track ? 'Max pulses N (0 = whole track)' : 'Window k (pulses)';
+            inp.min = track ? 0 : 2;
+            inp.value = track ? 128 : 32;
+        }
+        window.onRunDetailsChanged = () => loadHistory();
+
+        let historyRuns = [];
+        async function deleteRunRow(runId) {
+            const r = historyRuns.find(x => x.id === runId);
+            if (await deleteTrainingRun(runId, r && r.saved_name)) loadHistory();
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        // ---------------------------------------------------------------- sequence model
+        let seqLabels = {};
+        function seqLabel(name) {
+            if (seqLabels[name]) return seqLabels[name];
+            if (name.startsWith('dcol:')) return 'Δ' + name.slice(5);
+            if (name.startsWith('col:')) return name.slice(4);
+            return name;
+        }
+
+        async function loadDatasetChoices() {
+            const sel = document.getElementById('seq-dataset');
+            const data = await (await fetch('/api/datasets')).json();
+            const keep = sel.value;
+            sel.innerHTML = (data.datasets || []).map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} — ${escapeHtml(d.kind)}, ${d.tracks ?? '?'} tracks${d.is_active ? ' (default)' : ''}</option>`).join('')
+                || '<option value="">(no datasets — generate or upload one on the Dataset page)</option>';
+            sel.value = [...sel.options].some(o => o.value === keep) ? keep : (data.active || '');
+        }
+
+        async function loadSequenceOptions() {
+            if (!document.getElementById('seq-dataset').options.length) await loadDatasetChoices();
+            const chosen = document.getElementById('seq-dataset').value;
+            const o = await (await fetch('/api/sequence/options' + (chosen ? '?dataset=' + encodeURIComponent(chosen) : ''))).json();
+            seqLabels = Object.fromEntries(o.features.map(f => [f.name, f.label]));
+            const bb = document.getElementById('seq-backbone');
+            if (!bb.options.length) bb.innerHTML = o.backbones.map(b => `<option value="${b.value}" ${b.value === 'seq_hybrid' ? 'selected' : ''}>${b.label}</option>`).join('');
+            const box = document.getElementById('seq-feature-options');
+            const previous = new Set([...box.querySelectorAll('.seq-feature-cb')].filter(cb => cb.checked).map(cb => cb.value));
+            box.innerHTML = o.features.map(f => `<label class="feature-option${f.available ? '' : ' unavailable'}" title="${f.description.replace(/"/g, '&quot;')}">
+                <input type="checkbox" class="seq-feature-cb" value="${escapeHtml(f.name)}" ${(previous.size ? previous.has(f.name) : o.defaults.includes(f.name)) && f.available ? 'checked' : ''} ${f.available ? '' : 'disabled'}>
+                <span>${escapeHtml(f.label)}${f.unit ? ` <span class="hint">(${f.unit})</span>` : ''}${f.source === 'dataset' ? ' <span class="feature-tag dataset">from dataset</span>' : ''}</span></label>`).join('');
+            const extra = o.features.filter(f => f.source === 'dataset').length / 2;
+            document.getElementById('seq-extra-hint').innerText = extra
+                ? `The sequence dataset has ${extra} extra column(s) usable as features (value, and Δ = change from the previous pulse). A model using them can't run on simulated tracks (Live Simulation Tracks, example tracks, auto-generated test tracks) — use track files that contain the column(s).`
+                : '';
+            const d = o.dataset;
+            document.getElementById('seq-dataset-status').innerText = d
+                ? `Training on dataset “${d.name}”: ${d.tracks} tracks, ${d.pulses.toLocaleString()} pulses (${d.source === 'uploaded' ? 'uploaded' : 'generated, seed ' + d.seed}).`
+                : 'No sequence dataset yet — generate or upload one on the Dataset page (Sequence Pipeline).';
+            loadHistory();
+        }
+
+        // ---------------------------------------------------------------- job plumbing (train / stop / watch)
+        // fetch with a timeout and readable errors: a busy or unreachable server must never look like a silent hang.
+        async function fetchJson(url, opts = {}, timeoutMs = 30000) {
+            const ctl = new AbortController();
+            const timer = setTimeout(() => ctl.abort(), timeoutMs);
+            try {
+                const resp = await fetch(url, Object.assign({}, opts, { signal: ctl.signal }));
+                try { return await resp.json(); }
+                catch (e) { throw new Error(`the server sent an unreadable answer (HTTP ${resp.status})`); }
+            } catch (e) {
+                if (e.name === 'AbortError') throw new Error(`no answer from the server within ${Math.round(timeoutMs / 1000)} s — it may be busy with a large dataset`);
+                if (e instanceof TypeError) throw new Error('cannot reach the server — is it still running?');
+                throw e;
+            } finally { clearTimeout(timer); }
+        }
+
+        let activeWatch = null;
+        // Follows the server's job until it ends (succeeded / failed / cancelled). The server reports the state,
+        // so a job that fails within a second is still reported — nothing is left spinning.
+        function watchJob({ statusEl, btn, stopBtn, describe, onFinish }) {
+            if (activeWatch) clearInterval(activeWatch);
+            let failures = 0, finishing = false;
+            btn.disabled = true; stopBtn.style.display = ''; stopBtn.disabled = false;
+            const tick = async () => {
+                if (finishing) return;
+                try {
+                    const s = await fetchJson('/api/train/status', {}, 15000);
+                    failures = 0;
+                    if (s.is_training) {
+                        stopBtn.disabled = s.state === 'stopping';
+                        statusEl.innerText = s.state === 'stopping' ? 'Stopping… the current batch finishes first.' : describe(s);
+                        return;
+                    }
+                    finishing = true;
+                    clearInterval(activeWatch); activeWatch = null;
+                    stopBtn.style.display = 'none'; btn.disabled = false;
+                    await onFinish(s);
+                } catch (e) {
+                    failures++;
+                    statusEl.innerText = `Lost contact with the server (${e.message}) — retrying… (${failures})`;
+                }
+            };
+            activeWatch = setInterval(tick, 1000);
+            tick();
+        }
+
+        async function stopTraining(buttonId) {
+            if (!confirm('Stop the running training? Its progress is discarded (nothing is saved) and the current model stays as it is.')) return;
+            const b = document.getElementById(buttonId);
+            b.disabled = true;
+            try {
+                const r = await fetchJson('/api/train/stop', { method: 'POST' });
+                if (r.status !== 'success') { alert(r.message || 'Could not stop.'); b.disabled = false; }
+            } catch (e) { alert(`Could not stop: ${e.message}`); b.disabled = false; }
+        }
+
+        function seqDescribe(s) {
+            const p = s.progress || {};
+            const ds = p.dataset || document.getElementById('seq-dataset').value;
+            if (s.phase === 'Training' && p.epoch !== undefined)
+                return `Training on dataset “${ds}”...${p.folds > 1 ? ` fold ${p.fold}/${p.folds},` : ''} epoch ${p.epoch}/${p.epochs} (avg loss=${p.loss ?? '-'})`;
+            return `${s.phase || 'Working'}… (dataset “${ds}”)`;
+        }
+
+        async function seqFinished(s) {
+            const statusEl = document.getElementById('seq-train-status');
+            if (s.state === 'cancelled') { statusEl.innerText = s.message || 'Training stopped.'; return; }
+            if (s.state === 'failed' || s.error) { statusEl.innerText = `Training failed: ${s.error || 'unknown reason (see the server log)'}`; return; }
+            const run = (await fetchJson(`/api/runs/${s.last_run_id}`)).run || {};
+            statusEl.innerText = `Done — run #${s.last_run_id} (dataset “${run.dataset_name || '?'}”): window accuracy ${(s.last_metrics.closed_set_accuracy * 100).toFixed(1)}%, AUROC ${s.last_metrics.open_set_auroc ?? 'N/A'}; thresholds τ_c = ${run.classifier_confidence_threshold}, τ_d = ${run.ood_distance_threshold}. Double-click it in Run History for accuracy vs. pulses observed, formulas and weights.`;
+            await loadHistory();
+        }
+
+        function watchSequenceJob() {
+            watchJob({ statusEl: document.getElementById('seq-train-status'), btn: document.getElementById('seq-train-btn'),
+                       stopBtn: document.getElementById('seq-stop-btn'), describe: seqDescribe, onFinish: seqFinished });
+        }
+
+        async function trainSequenceModel() {
+            const btn = document.getElementById('seq-train-btn');
+            const statusEl = document.getElementById('seq-train-status');
+            const features = [...document.querySelectorAll('.seq-feature-cb')].filter(cb => cb.checked && !cb.disabled).map(cb => cb.value);
+            if (!features.length) { statusEl.innerText = 'Select at least one feature.'; return; }
+            btn.disabled = true;
+            try {
+                statusEl.innerText = 'Step 1/2 — saving the shared hyperparameters…';
+                const applied = await applyConfiguration(true);  // learning rate, margin, thresholds, metric, RPL
+                if (applied.status === 'error') { statusEl.innerText = `Could not start: ${applied.message || 'invalid configuration'}`; btn.disabled = false; return; }
+                statusEl.innerText = 'Step 2/2 — checking the dataset and starting (a large dataset can take a while to read)…';
+                const start = await fetchJson('/api/sequence/train', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+                    backbone_type: document.getElementById('seq-backbone').value,
+                    window_mode: document.getElementById('seq-window-mode').value,
+                    window: (document.getElementById('seq-window-mode').value === 'track' && document.getElementById('seq-window').value === '0') ? 0 : (parseInt(document.getElementById('seq-window').value) || 32),
+                    epochs: parseInt(document.getElementById('seq-epochs').value) || 20,
+                    embedding_dim: parseInt(document.getElementById('seq-embed-dim').value) || 128,
+                    features,
+                    dataset: document.getElementById('seq-dataset').value || null,
+                    classifier_confidence_threshold: parseFloat(document.getElementById('seq-tau-c').value),
+                    ood_distance_threshold: document.getElementById('seq-tau-d-mode').value === 'manual' ? parseFloat(document.getElementById('seq-tau-d').value) : null,
+                    known_coverage: (parseFloat(document.getElementById('seq-coverage').value) || 95) / 100,
+                    test_pct: parseFloat(document.getElementById('seq-test-pct').value) || 0,
+                    cv_folds: parseInt(document.getElementById('seq-cv-folds').value) || 4,
+                    cross_validation: document.getElementById('seq-cv-mode').value === 'on',
+                    include_test: document.getElementById('seq-include-test').checked,
+                }) }, 180000);
+                if (start.status === 'error') { statusEl.innerText = `Could not start: ${start.message}`; btn.disabled = false; return; }
+                watchSequenceJob();
+            } catch (e) {
+                statusEl.innerText = `Could not start: ${e.message}`;
+                btn.disabled = false;
+            }
+        }
+
+        // ---------------------------------------------------------------- incremental training
+        let incModels = [];
+        const pctv = (x) => x === null || x === undefined ? '—' : (x * 100).toFixed(1) + '%';
+
+        async function loadIncremental(selectDataset) {
+            const models = (await (await fetch('/api/sequence/models')).json()).models || [];
+            incModels = models;
+            const base = document.getElementById('inc-base');
+            const keep = base.value;
+            base.innerHTML = models.length
+                ? models.map(m => `<option value="${m.run_id}">${m.name ? '★ ' + escapeHtml(m.name) + ' — ' : ''}run #${m.run_id} (${m.backbone_type}, k=${m.window_k}${m.dataset_name ? ', ' + escapeHtml(m.dataset_name) : ''}${m.parent_run_id ? ', ← #' + m.parent_run_id + ' ' + m.incremental_method : ''})</option>`).join('')
+                : '<option value="">No model yet — train one above</option>';
+            if ([...base.options].some(o => o.value === keep)) base.value = keep;
+            await incBaseChanged(selectDataset);
+        }
+
+        async function incBaseChanged(selectDataset) {
+            const runId = document.getElementById('inc-base').value;
+            const dsSel = document.getElementById('inc-dataset');
+            const list = (await (await fetch('/api/datasets')).json()).datasets || [];
+            const keep = selectDataset || dsSel.value;
+            dsSel.innerHTML = list.map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} — ${escapeHtml(d.kind)}, ${d.tracks ?? '?'} tracks</option>`).join('')
+                || '<option value="">No datasets yet</option>';
+            const preferred = list.find(d => d.name.startsWith(`new_families_run${runId}_`));
+            dsSel.value = [...dsSel.options].some(o => o.value === keep) ? keep : (preferred ? preferred.name : dsSel.value);
+            if (!runId) return;
+            const o = await (await fetch(`/api/sequence/incremental/options?run_id=${runId}`)).json();
+            if (o.status !== 'success') return;
+            const methods = document.getElementById('inc-methods');
+            if (!methods.children.length)
+                methods.innerHTML = o.methods.map(m => `<label class="feature-option"><input type="checkbox" class="inc-method" value="${m.value}" checked> <span><b>${m.value}</b> — ${escapeHtml(m.label)}</span></label>`).join('');
+            document.getElementById('inc-full-epochs').placeholder = `as base (${o.epochs ?? '?'})`;
+            document.getElementById('inc-base-info').innerText = `Base model trained on ${o.dataset_name ? 'dataset “' + o.dataset_name + '”' : 'an unnamed dataset (regenerated from its seed)'}.`;
+            document.getElementById('inc-families').innerHTML = o.unknown_families.length
+                ? o.unknown_families.map((c, i) => `<label style="display:inline-flex; align-items:center; gap:4px; margin-right:12px;"><input type="checkbox" class="inc-fam" value="${c}" ${i === 0 ? 'checked' : ''} style="width:auto; margin:0;"> RADAR_FAMILY_${String(c).padStart(2, '0')}</label>`).join('')
+                : 'none — the base model was trained on an uploaded dataset, or all its held-out families have been added';
+        }
+
+        async function generateNewFamilies() {
+            const st = document.getElementById('inc-gen-status');
+            const runId = parseInt(document.getElementById('inc-base').value);
+            const ids = [...document.querySelectorAll('.inc-fam')].filter(cb => cb.checked).map(cb => parseInt(cb.value));
+            if (!runId || !ids.length) { st.innerText = 'Choose a base model and at least one family.'; return; }
+            st.innerText = 'Generating...';
+            const r = await (await fetch('/api/sequence/dataset/new_families', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ run_id: runId, class_ids: ids, tracks_per_class: parseInt(document.getElementById('inc-fam-tracks').value) || 30 }) })).json();
+            st.innerText = r.message || 'Failed.';
+            if (r.status === 'success') await incBaseChanged(r.name);
+        }
+
+        function renderExperiment(exp, el) {
+            const rows = exp.rows || [];
+            const base = rows.find(r => r.method === 'base') || {};
+            const delta = (v, b) => v === null || v === undefined || b === null || b === undefined ? '' :
+                ` <span class="hint">(${v - b >= 0 ? '+' : ''}${((v - b) * 100).toFixed(1)})</span>`;
+            el.innerHTML = `<div class="hint" style="margin-bottom:6px;">Base #${exp.parent_run_id ?? base.run_id} + dataset “${escapeHtml(exp.dataset || '')}” (new: ${(exp.new_class_labels || []).map(escapeHtml).join(', ')}).` +
+                (exp.eval_tracks ? ` Scored on ${exp.eval_tracks.old} old-family, ${exp.eval_tracks.new} new-family and ${exp.eval_tracks.unknown} unknown tracks.` : '') + `</div>
+                <div style="overflow-x:auto;"><table class="history"><tr><th>Method</th><th>Model</th><th>Old families: track acc. (Δ vs base)</th><th>New family: track acc.</th><th>Windows verified known (old / new)</th><th>Unknown tracks flagged</th><th>AUROC</th><th>Time</th><th>Data used</th></tr>` +
+                rows.map(r => `<tr><td><b>${r.method === 'base' ? 'Base' : r.method}</b></td><td>#${r.run_id}</td>
+                    <td>${pctv(r.old_track_accuracy)}${r.method === 'base' ? '' : delta(r.old_track_accuracy, base.old_track_accuracy)}</td>
+                    <td>${r.method === 'base' ? `<span class="hint">not known — flagged unknown on ${pctv(r.new_flagged_as_unknown)} of its tracks</span>` : pctv(r.new_track_accuracy)}</td>
+                    <td>${pctv(r.old_verified)} / ${pctv(r.new_verified)}</td><td>${pctv(r.unknown_tracks_flagged)}</td>
+                    <td>${r.open_set_auroc ?? '—'}</td><td>${r.seconds === null || r.seconds === undefined ? '—' : r.seconds + ' s'}</td>
+                    <td class="hint" style="text-align:left;">${escapeHtml(r.data_used || '')}</td></tr>`).join('') + '</table></div>' +
+                `<div class="definition">Track accuracy = class of the per-track vote. “Verified known” = share of known windows passing both thresholds (confidence ≥ τ_c and distance ≤ τ_d) — what Inference reports as a verified known target. Forgetting = the drop in old-family accuracy against the base. Each method's model is in Run History (double-click for details); test it on the Testing page or use it for Inference.</div>`;
+        }
+
+        async function loadIncrementalHistory() {
+            const data = await (await fetch('/api/sequence/incremental/experiments')).json();
+            const el = document.getElementById('inc-history');
+            const exps = data.experiments || [];
+            if (!exps.length) { el.innerText = 'No comparisons yet.'; return; }
+            el.innerHTML = exps.map((e, i) => `<div style="margin-bottom:14px;"><b>${escapeHtml(e.created)}</b><div id="inc-exp-${i}"></div></div>`).join('');
+            exps.forEach((e, i) => renderExperiment(e, document.getElementById(`inc-exp-${i}`)));
+        }
+
+        async function runIncremental() {
+            const btn = document.getElementById('inc-btn');
+            const st = document.getElementById('inc-status');
+            const methods = [...document.querySelectorAll('.inc-method')].filter(cb => cb.checked).map(cb => cb.value);
+            const num = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseFloat(v); };
+            const payload = { parent_run_id: parseInt(document.getElementById('inc-base').value), dataset: document.getElementById('inc-dataset').value, methods,
+                finetune_epochs: parseInt(num('inc-ft-epochs')) || 20, full_epochs: num('inc-full-epochs') ? parseInt(num('inc-full-epochs')) : null,
+                replay_tracks_per_class: parseInt(num('inc-replay') ?? 10), lr_scale: num('inc-lr') ?? 0.5, eval_fraction: (num('inc-eval') ?? 30) / 100 };
+            if (!payload.parent_run_id || !payload.dataset || !methods.length) { st.innerText = 'Choose a base model, the new-family dataset and at least one method.'; return; }
+            btn.disabled = true;
+            st.innerText = 'Preparing the data…';
+            document.getElementById('inc-results').innerHTML = '';
+            try {
+                const start = await fetchJson('/api/sequence/incremental', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }, 180000);
+                if (start.status !== 'started') { st.innerText = `Could not start: ${start.message}`; btn.disabled = false; return; }
+            } catch (e) { st.innerText = `Could not start: ${e.message}`; btn.disabled = false; return; }
+            watchIncrementalJob(payload);
+        }
+
+        function watchIncrementalJob(payload) {
+            const st = document.getElementById('inc-status');
+            watchJob({ statusEl: st, btn: document.getElementById('inc-btn'), stopBtn: document.getElementById('inc-stop-btn'),
+                describe: (s) => {
+                    if (s.incremental && s.incremental.rows) renderExperiment(Object.assign({ parent_run_id: payload.parent_run_id, dataset: payload.dataset }, s.incremental), document.getElementById('inc-results'));
+                    const p = s.progress || {};
+                    if (p.phase === 'incremental' && p.method) return `Method ${p.method}${p.epochs ? `: epoch ${p.epoch}/${p.epochs} (loss ${p.loss ?? '-'})` : ': computing'} — base #${payload.parent_run_id}, data “${p.dataset}”`;
+                    return `${s.phase || 'Working'}…`;
+                },
+                onFinish: async (s) => {
+                    if (s.incremental && s.incremental.rows) renderExperiment(Object.assign({ parent_run_id: payload.parent_run_id, dataset: payload.dataset }, s.incremental), document.getElementById('inc-results'));
+                    st.innerText = s.state === 'cancelled' ? (s.message || 'Stopped.') : s.error ? `Failed: ${s.error}` : 'Done — every method\'s model is in Run History.';
+                    await loadHistory();
+                    await loadIncremental();
+                    await loadIncrementalHistory();
+                } });
+        }
+
+        // A refresh (or opening the page on another tab) re-attaches to a job that is still running.
+        async function resumeRunningJob() {
+            const s = await fetchJson('/api/train/status', {}, 15000);
+            if (!s.is_training) return;
+            if ((s.progress || {}).phase === 'incremental') watchIncrementalJob({ parent_run_id: parseInt(document.getElementById('inc-base').value) || null, dataset: document.getElementById('inc-dataset').value });
+            else watchSequenceJob();
+        }
+
+        loadHistory();
+        loadConfigIntoForm();
+        loadIncremental().catch(() => {});
+        loadIncrementalHistory().catch(() => {});
+        loadSequenceOptions().catch(() => {});
+        resumeRunningJob().catch(() => {});
+        // Another page may have changed the datasets while this tab stayed open.
+        window.addEventListener('focus', () => loadDatasetChoices().catch(() => {}));
+    </script>
+</body>
+</html>
