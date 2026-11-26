@@ -71,9 +71,18 @@ def grow_model(base: SequenceDualHeadModel, num_classes: int) -> SequenceDualHea
     return model
 
 
+def _backbone_features(model: SequenceDualHeadModel, x: torch.Tensor) -> torch.Tensor:
+    """The backbone's feature vector f. Track-mode arrays carry the padding mask as one extra last
+    channel (pad_stack); split it off here, as SequenceDualHeadModel.forward does."""
+    mask = None
+    if x.shape[-1] == model.n_features + 1:
+        mask, x = x[:, :, -1] > 0.5, x[:, :, :-1]
+    return model.backbone(x, mask)
+
+
 def _features(model: SequenceDualHeadModel, x: np.ndarray, batch: int = 512) -> torch.Tensor:
     with torch.no_grad():
-        return torch.cat([model.backbone(torch.from_numpy(x[i:i + batch])) for i in range(0, len(x), batch)])
+        return torch.cat([_backbone_features(model, torch.from_numpy(x[i:i + batch])) for i in range(0, len(x), batch)])
 
 
 def _training_data(df: pd.DataFrame, spec: Optional[SequenceSpec], names: List[str], k: int, seed: int) -> Dict[str, Any]:
@@ -119,7 +128,7 @@ def _finetune(model: SequenceDualHeadModel, data: Dict[str, Any], cfg: Dict[str,
                 length = rng.randint(crop["min"], xb.shape[1] + 1)
                 start = 0 if crop.get("prefix") else rng.randint(0, xb.shape[1] - length + 1)
                 xb = xb[:, start:start + length]
-            f = model.backbone(xb)
+            f = _backbone_features(model, xb)
             logits = model.classifier_head(f)
             emb = F.normalize(model.metric_head(f), dim=-1)
             known = yb >= 0
@@ -129,7 +138,7 @@ def _finetune(model: SequenceDualHeadModel, data: Dict[str, Any], cfg: Dict[str,
                 loss = loss + triplet(emb[a], emb[p], emb[n])
             if teacher is not None:
                 with torch.no_grad():
-                    tf = teacher.backbone(xb)
+                    tf = _backbone_features(teacher, xb)
                     t_logits = teacher.classifier_head(tf)
                     t_emb = F.normalize(teacher.metric_head(tf), dim=-1)
                 if len(old):

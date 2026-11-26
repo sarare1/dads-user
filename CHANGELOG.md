@@ -5,6 +5,19 @@ Versions: [Semantic Versioning](https://semver.org/) (see `docs/RELEASING.md`).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-26
+
+**Upgrade:** nothing to do. Models trained before this release load and run unchanged. Models trained with
+it use the corrected classifier loss, so their scores are not directly comparable with earlier runs.
+
+### Fixed
+- **Training passed softmax probabilities to the cross-entropy loss** (every backbone). The loss applied a
+  second softmax, which weakened the classifier signal. Training now uses the classifier logits
+  (`SequenceDualHeadModel.logits_and_embeddings`). `forward()` is unchanged, so checkpoints and exported
+  packages are unaffected.
+- **Incremental training crashed on track-mode models** (methods A, B and C, every backbone). The padding
+  mask channel is now split off before the backbone, as in normal inference.
+
 ## [1.3.0] - 2026-11-25
 
 **Upgrade:** nothing to do. On the first start, the history database (`data/training_history.db`) is

@@ -137,9 +137,9 @@ def train_model(model: nn.Module, dataset: Dict[str, Any], config: Dict[str, Any
             # --- main step: model + RPL head, using real data (and, if enabled, rejecting
             # the generator's CURRENT (detached) confusing samples) ---
             optimizer.zero_grad()
-            probs, embeddings = model(xb)
+            logits, embeddings = model.logits_and_embeddings(xb)  # CrossEntropyLoss applies the softmax itself
 
-            cls_loss = ce_loss_fn(probs[known_mask], yb[known_mask]) if known_mask.any() else torch.tensor(0.0)
+            cls_loss = ce_loss_fn(logits[known_mask], yb[known_mask]) if known_mask.any() else torch.tensor(0.0)
 
             a_idx, p_idx, n_idx = _in_batch_triplets(yb, rng)
             if len(a_idx) > 0:

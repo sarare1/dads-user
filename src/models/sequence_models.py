@@ -169,14 +169,18 @@ class SequenceDualHeadModel(nn.Module):
         self.classifier_head = nn.Linear(embed_dim, num_classes)
         self.metric_head = nn.Sequential(nn.Linear(embed_dim, embed_dim), nn.ReLU(), nn.Linear(embed_dim, embed_dim))
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
-        """x: [batch, pulses, features]. Tracks of different lengths can share a batch when padded at the
-        end: pass `mask` [batch, pulses] (1 = real pulse), or append it to x as one extra last channel
-        ([batch, pulses, features + 1]) — the form the dataset arrays use. No mask = every pulse is real."""
+    def logits_and_embeddings(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
+        """(classifier logits, unit-length embeddings). Training losses use this: CrossEntropyLoss
+        needs logits, not the softmax probabilities forward() returns. Same inputs as forward()."""
         if x.shape[-1] == self.n_features + 1:
             mask = x[:, :, -1] > 0.5
             x = x[:, :, :-1]
         features = self.backbone(x, mask)
-        probs = F.softmax(self.classifier_head(features), dim=-1)
-        embeddings = F.normalize(self.metric_head(features), p=2.0, dim=-1)
-        return probs, embeddings
+        return self.classifier_head(features), F.normalize(self.metric_head(features), p=2.0, dim=-1)
+
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
+        """x: [batch, pulses, features]. Tracks of different lengths can share a batch when padded at the
+        end: pass `mask` [batch, pulses] (1 = real pulse), or append it to x as one extra last channel
+        ([batch, pulses, features + 1]) — the form the dataset arrays use. No mask = every pulse is real."""
+        logits, embeddings = self.logits_and_embeddings(x, mask)
+        return F.softmax(logits, dim=-1), embeddings
